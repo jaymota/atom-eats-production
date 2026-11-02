@@ -1,5 +1,6 @@
-// Today. Admins can plan today right here. Every open batch due today or earlier is listed by
-// stage, with one big button to move it forward (the floor view). Late batches get a red box.
+// Today. Admins can plan today right here. Every open batch due today or earlier is listed:
+// "To make" (in-house, with a Complete button) and "Awaiting stock" (contract manufacturers,
+// with Stock received). In-house batches past their day get a red Late box; contract ones just wait.
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BatchCard } from '../components/BatchCard'
@@ -7,7 +8,7 @@ import QuickPlan from '../components/QuickPlan'
 import { Button, Card, OkBox } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import {
-  FLOOR_STAGES, STAGE_NAMES, addDays, dayLabel, fmtN, isLate, loadBatches, todayIST, type Batch,
+  FLOOR_STAGES, addDays, dayLabel, fmtN, isLate, loadBatches, todayIST, type Batch,
 } from '../lib/batches'
 import { isAdmin } from '../lib/format'
 import { countsChanged } from '../lib/counts'
@@ -49,6 +50,9 @@ export default function Home() {
     { to: '/plan?view=day&day=' + addDays(today, 1), label: 'Tomorrow', n: tomorrow ?? '…' },
   ]
 
+  const toMake = list.filter((b) => !b.manufacturer_id)
+  const awaiting = list.filter((b) => !!b.manufacturer_id)
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold text-ae-blue">Today · {dayLabel(today)}</h2>
@@ -63,7 +67,11 @@ export default function Home() {
       </div>
 
       <OkBox>{msg}</OkBox>
-      {admin && !planning && <Button className="w-full" onClick={() => { setPlanning(true); setMsg('') }}>+ Plan today</Button>}
+      {admin && (
+        <Button tone={planning ? 'plain' : 'primary'} className="w-full" onClick={() => { setPlanning(!planning); setMsg('') }}>
+          {planning ? '✕ Close planner' : '+ Plan today'}
+        </Button>
+      )}
       {planning && <QuickPlan day={today} onCancel={() => setPlanning(false)} onDone={(m) => { setPlanning(false); setMsg(m); load() }} />}
 
       {late.length > 0 && (
@@ -73,7 +81,7 @@ export default function Home() {
             {late.slice(0, 6).map((b) => (
               <li key={b.id}>
                 <Link to={`/batch/${b.id}`} className="text-stone-800 underline decoration-stone-300">{b.product.name}</Link>{' '}
-                <span className="text-xs text-stone-500">{b.batch_no} · {STAGE_NAMES[b.stage]} · planned {dayLabel(b.planned_date!)}</span>
+                <span className="text-xs text-stone-500">{b.batch_no} · planned {dayLabel(b.planned_date!)}</span>
               </li>
             ))}
             {late.length > 6 && <li className="text-xs text-stone-500">+{late.length - 6} more (below)</li>}
@@ -84,20 +92,16 @@ export default function Home() {
       {open === null && <p className="text-sm text-stone-500">Loading…</p>}
       {open && !list.length && !planning && <Card><p className="text-stone-600">Nothing to do today.</p></Card>}
 
-      {FLOOR_STAGES.map((s) => {
-        const here = list.filter((b) => b.stage === s)
-        if (!here.length) return null
-        return (
-          <div key={s} className="space-y-2">
-            <h3 className="text-sm font-semibold text-stone-500">{STAGE_NAMES[s]} · {here.length}</h3>
-            <Card className="p-0 sm:p-0">
-              <ul className="divide-y divide-stone-100">
-                {here.map((b) => <li key={b.id}><BatchCard b={b} workerNames={names} showDate={b.planned_date !== today} onMoved={load} /></li>)}
-              </ul>
-            </Card>
-          </div>
-        )
-      })}
+      {[{ label: 'To make', here: toMake }, { label: 'Awaiting stock', here: awaiting }].map(({ label, here }) => here.length > 0 && (
+        <div key={label} className="space-y-2">
+          <h3 className="text-sm font-semibold text-stone-500">{label} · {here.length}</h3>
+          <Card className="p-0 sm:p-0">
+            <ul className="divide-y divide-stone-100">
+              {here.map((b) => <li key={b.id}><BatchCard b={b} workerNames={names} showDate={b.planned_date !== today} floor /></li>)}
+            </ul>
+          </Card>
+        </div>
+      ))}
     </div>
   )
 }

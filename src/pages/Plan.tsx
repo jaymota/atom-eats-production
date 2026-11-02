@@ -78,7 +78,11 @@ export function DayPlan({ day, setDay, plan = false, floor = false }: { day: str
       )}
 
       <OkBox>{msg}</OkBox>
-      {admin && !planning && <Button className="w-full" onClick={() => { setPlanning(true); setMsg('') }}>+ Plan {when ? when.toLowerCase() : dayLabel(day)}</Button>}
+      {admin && (
+        <Button tone={planning ? 'plain' : 'primary'} className="w-full" onClick={() => { setPlanning(!planning); setMsg('') }}>
+          {planning ? '✕ Close planner' : `+ Plan ${when ? when.toLowerCase() : dayLabel(day)}`}
+        </Button>
+      )}
       {planning && <QuickPlan day={day} onCancel={() => setPlanning(false)} onDone={(m) => { setPlanning(false); setMsg(m); load() }} />}
 
       {rows === null && <p className="text-sm text-stone-500">Loading…</p>}
@@ -88,7 +92,7 @@ export function DayPlan({ day, setDay, plan = false, floor = false }: { day: str
           <ul className="divide-y divide-stone-100">
             {list.map((b) => (
               <li key={b.id} className={b.stage === 'cancelled' ? 'opacity-50' : ''}>
-                <BatchCard b={b} workerNames={names} onMoved={floor || day <= today ? load : undefined} />
+                <BatchCard b={b} workerNames={names} floor={floor || day <= today} />
               </li>
             ))}
           </ul>

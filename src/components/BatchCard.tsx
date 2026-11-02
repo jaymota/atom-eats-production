@@ -1,63 +1,68 @@
-// One batch in a list: product, batch number, units, stage, who's on it, and (on the floor)
-// the big "next stage" button.
-import { useState } from 'react'
+// One batch in a list: the product, the amount in big type (kg · units), where it's made,
+// and (on the floor) one button: Complete, or Stock received for a contract manufacturer.
 import { Link } from 'react-router-dom'
-import { NEXT, PACK_NAMES, STAGE_NAMES, STAGE_TONE, dayLabel, expectedKg, fmtKg, fmtN, isLate, unitsDone, why, type Batch } from '../lib/batches'
-import { countsChanged } from '../lib/counts'
-import { supabase } from '../lib/supabase'
-import { Button } from './ui'
+import {
+  PACK_NAMES, STAGE_NAMES, STAGE_TONE, completeLabel, dayLabel, expectedKg, fmtKg, fmtN, isAwaiting, isLate, kgDone, unitsDone, type Batch,
+} from '../lib/batches'
+import { sizeText } from '../lib/products'
 
 export function StageBadge({ stage }: { stage: Batch['stage'] }) {
   return <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${STAGE_TONE[stage]}`}>{STAGE_NAMES[stage]}</span>
 }
 
-export function BatchCard({ b, workerNames, showDate, onMoved }: {
+/** "30 kg · 750 units" in big type, with "40 g pouch" underneath. */
+export function Amount({ b, big = true }: { b: Batch; big?: boolean }) {
+  const kg = expectedKg(b)
+  return (
+    <div>
+      <div className={`font-bold text-ae-blue ${big ? 'text-2xl' : 'text-lg'}`}>
+        {kg != null && <>{fmtKg(kg)} · </>}{b.units_planned != null ? `${fmtN(b.units_planned)} units` : '—'}
+      </div>
+      <div className="text-sm text-stone-600">
+        {b.grammage_g ? `${sizeText(b.grammage_g)} ` : ''}{PACK_NAMES[b.pack_type].toLowerCase()}
+      </div>
+    </div>
+  )
+}
+
+export function MadeAt({ b }: { b: Pick<Batch, 'maker'> }) {
+  if (!b.maker) return null
+  return <span className="rounded-full bg-ae-lilac/30 px-2.5 py-0.5 text-xs font-semibold text-ae-blue">at {b.maker.name}</span>
+}
+
+export function BatchCard({ b, workerNames, showDate, floor }: {
   b: Batch
   workerNames: Record<string, string>
   showDate?: boolean
-  /** Shows the next-stage button; called after a move. */
-  onMoved?: () => void
+  /** Show the Complete / Stock received button. */
+  floor?: boolean
 }) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const next = NEXT[b.stage]
   const done = unitsDone(b)
-  const late = isLate(b)
-
-  const move = async () => {
-    if (!next || next.to === 'inventory') return
-    setBusy(true)
-    setError('')
-    const { error: err } = await supabase.rpc('move_batch', { p_id: b.id, p_to: next.to })
-    setBusy(false)
-    if (err) return setError(why(err))
-    countsChanged()
-    onMoved?.()
-  }
+  const open = b.stage !== 'moved' && b.stage !== 'cancelled'
 
   return (
-    <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <Link to={`/batch/${b.id}`} className="min-w-0 flex-1">
+    <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <Link to={`/batch/${b.id}`} className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold text-stone-900">{b.product.name}</span>
-          <StageBadge stage={b.stage} />
-          {late && <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">Late</span>}
+          <MadeAt b={b} />
+          {!open && <StageBadge stage={b.stage} />}
+          {isLate(b) && <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">Late</span>}
+          {isAwaiting(b) && <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs font-semibold text-stone-900">Awaiting stock</span>}
         </div>
-        <div className="text-sm text-stone-600">
-          {b.batch_no && <span className="font-mono">{b.batch_no} · </span>}
-          {b.units_planned != null && <>{fmtN(b.units_planned)} × {b.grammage_g} g {PACK_NAMES[b.pack_type].toLowerCase()}{expectedKg(b) != null && <> · {fmtKg(expectedKg(b))}</>}</>}
-          {done > 0 && <> · <b>{fmtN(done)}</b> packed</>}
-          {showDate && b.planned_date && <> · {dayLabel(b.planned_date)}</>}
+        <Amount b={b} />
+        <div className="text-xs text-stone-500">
+          {b.batch_no && <span className="font-mono">{b.batch_no}</span>}
+          {showDate && b.planned_date && <> · planned {dayLabel(b.planned_date)}</>}
+          {done > 0 && <> · <b className="text-stone-700">{fmtN(done)} units · {fmtKg(kgDone(b))} {b.manufacturer_id ? 'received' : 'made'}</b></>}
+          {b.workers.length > 0 && <> · {b.workers.map((w) => workerNames[w] ?? '?').join(', ')}</>}
         </div>
-        {b.workers.length > 0 && (
-          <div className="text-xs text-stone-500">{b.workers.map((w) => workerNames[w] ?? '?').join(', ')}</div>
-        )}
-        {error && <div className="mt-1 text-xs font-semibold text-red-700">{error}</div>}
       </Link>
-      {onMoved && next && (
-        next.to === 'inventory'
-          ? <Link to={`/batch/${b.id}?do=inventory`} className="min-h-12 rounded-lg bg-ae-blue px-4 py-3 text-center text-base font-semibold text-ae-cream sm:text-sm">{next.label}</Link>
-          : <Button className="min-h-12 px-4 sm:text-sm" disabled={busy} onClick={move}>{busy ? '…' : next.label}</Button>
+      {floor && open && (
+        <Link to={`/batch/${b.id}?do=complete`}
+          className="min-h-12 rounded-lg bg-ae-blue px-5 py-3 text-center text-base font-semibold text-ae-cream sm:text-sm">
+          {completeLabel(b)}
+        </Link>
       )}
     </div>
   )

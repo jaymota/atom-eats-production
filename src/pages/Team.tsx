@@ -236,15 +236,16 @@ export default function Team() {
         </>
       )}
 
-      <Workers admin={admin} />
+      <NameList admin={admin} table="workers" title="Floor workers" />
+      <NameList admin={admin} table="manufacturers" title="Contract manufacturers" />
     </div>
   )
 }
 
 interface Worker { id: string; name: string; active: boolean }
 
-/** Floor workers: names only. Admins add, rename or switch them off. */
-function Workers({ admin }: { admin: boolean }) {
+/** Floor workers or contract manufacturers: names only. Admins add, rename or switch them off. */
+function NameList({ admin, table, title }: { admin: boolean; table: 'workers' | 'manufacturers'; title: string }) {
   const [list, setList] = useState<Worker[]>([])
   const [name, setName] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
@@ -252,9 +253,9 @@ function Workers({ admin }: { admin: boolean }) {
   const [error, setError] = useState('')
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('workers').select('id, name, active').order('name')
+    const { data } = await supabase.from(table).select('id, name, active').order('name')
     setList((data ?? []) as Worker[])
-  }, [])
+  }, [table])
   useEffect(() => { load() }, [load])
 
   const run = async (q: PromiseLike<{ error: { code?: string; message: string } | null }>) => {
@@ -267,7 +268,7 @@ function Workers({ admin }: { admin: boolean }) {
 
   const add = async (e: FormEvent) => {
     e.preventDefault()
-    if (await run(supabase.from('workers').insert({ name: name.trim() }))) setName('')
+    if (await run(supabase.from(table).insert({ name: name.trim() }))) setName('')
   }
 
   const on = list.filter((w) => w.active)
@@ -275,7 +276,7 @@ function Workers({ admin }: { admin: boolean }) {
 
   return (
     <div className="space-y-3 pt-4">
-      <h2 className="text-xl font-bold text-ae-blue">Floor workers</h2>
+      <h2 className="text-xl font-bold text-ae-blue">{title}</h2>
       {admin && (
         <form onSubmit={add} className="flex gap-2">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />
@@ -290,7 +291,7 @@ function Workers({ admin }: { admin: boolean }) {
               {editing === w.id ? (
                 <form className="flex w-full gap-2" onSubmit={async (e) => {
                   e.preventDefault()
-                  if (await run(supabase.from('workers').update({ name: editName.trim() }).eq('id', w.id))) setEditing(null)
+                  if (await run(supabase.from(table).update({ name: editName.trim() }).eq('id', w.id))) setEditing(null)
                 }}>
                   <Input value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
                   <Button type="submit" disabled={!editName.trim()}>Save</Button>
@@ -303,8 +304,8 @@ function Workers({ admin }: { admin: boolean }) {
                     <div className="flex gap-2">
                       <Button tone="plain" className="min-h-10 px-3 text-sm" onClick={() => { setEditing(w.id); setEditName(w.name) }}>Rename</Button>
                       {w.active
-                        ? <Button tone="danger" className="min-h-10 px-3 text-sm" onClick={() => run(supabase.from('workers').update({ active: false }).eq('id', w.id))}>Switch off</Button>
-                        : <Button tone="plain" className="min-h-10 px-3 text-sm" onClick={() => run(supabase.from('workers').update({ active: true }).eq('id', w.id))}>Switch on</Button>}
+                        ? <Button tone="danger" className="min-h-10 px-3 text-sm" onClick={() => run(supabase.from(table).update({ active: false }).eq('id', w.id))}>Switch off</Button>
+                        : <Button tone="plain" className="min-h-10 px-3 text-sm" onClick={() => run(supabase.from(table).update({ active: true }).eq('id', w.id))}>Switch on</Button>}
                     </div>
                   )}
                 </>

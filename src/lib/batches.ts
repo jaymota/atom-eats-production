@@ -7,38 +7,32 @@ export type PackType = 'pouch' | 'jar' | 'bulk' | 'party_pack'
 
 export const STAGE_NAMES: Record<Stage, string> = {
   planned: 'Planned',
-  manufacturing: 'Manufacturing',
-  filling: 'Filling',
-  qc: 'QC',
-  done: 'Done',
-  moved: 'Moved to inventory',
+  manufacturing: 'Planned',
+  filling: 'Planned',
+  qc: 'Planned',
+  done: 'Planned',
+  moved: 'Done',
   cancelled: 'Cancelled',
 }
 
-/** Stages a batch moves through on the floor, in order. */
+/** Open (not done, not cancelled). Only "planned" is used now; the others are old stages. */
 export const FLOOR_STAGES: Stage[] = ['planned', 'manufacturing', 'filling', 'qc', 'done']
 export const OPEN_STAGES: Stage[] = FLOOR_STAGES
 
 export const PACK_NAMES: Record<PackType, string> = { pouch: 'Pouch', jar: 'Jar', bulk: 'Bulk', party_pack: 'Party pack' }
 
-/** The big button on each stage. */
-export const NEXT: Partial<Record<Stage, { to: Stage | 'inventory'; label: string }>> = {
-  planned: { to: 'manufacturing', label: 'Start making' },
-  manufacturing: { to: 'filling', label: 'Start filling' },
-  filling: { to: 'qc', label: 'Send to QC' },
-  qc: { to: 'done', label: 'QC passed' },
-  done: { to: 'inventory', label: 'Move to inventory' },
-}
-
 export const STAGE_TONE: Record<Stage, string> = {
   planned: 'bg-stone-100 text-stone-700',
-  manufacturing: 'bg-orange-100 text-orange-800',
-  filling: 'bg-sky-100 text-sky-800',
-  qc: 'bg-purple-100 text-purple-800',
-  done: 'bg-green-100 text-green-800',
-  moved: 'bg-ae-blue text-ae-cream',
+  manufacturing: 'bg-stone-100 text-stone-700',
+  filling: 'bg-stone-100 text-stone-700',
+  qc: 'bg-stone-100 text-stone-700',
+  done: 'bg-stone-100 text-stone-700',
+  moved: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800',
 }
+
+/** "Complete" for in-house batches, "Stock received" for contract manufacturers. */
+export const completeLabel = (b: Pick<Batch, 'manufacturer_id'>) => (b.manufacturer_id ? 'Stock received' : 'Complete')
 
 export interface Output {
   id: string
@@ -67,11 +61,13 @@ export interface Batch {
   imported: boolean
   created_at: string
   closed_at: string | null
+  manufacturer_id: string | null
+  maker: { name: string } | null
   product: { name: string; sku: string; category: string | null }
   outputs: Output[]
 }
 
-export const BATCH_SELECT = '*, product:products(name, sku, category), outputs:batch_outputs(*)'
+export const BATCH_SELECT = '*, product:products(name, sku, category), maker:manufacturers(name), outputs:batch_outputs(*)'
 
 // ---------- Dates (India time) ----------
 
@@ -119,8 +115,16 @@ export function lossPct(outputs: Pick<Output, 'output_kg' | 'input_kg'>[]): numb
 export const fmtKg = (n: number | null | undefined) => (n == null ? '—' : `${Math.round(n * 100) / 100} kg`)
 export const fmtN = (n: number) => n.toLocaleString('en-IN')
 
-export const isLate = (b: Pick<Batch, 'stage' | 'planned_date'>, today = todayIST()) =>
+const overdue = (b: Pick<Batch, 'stage' | 'planned_date'>, today: string) =>
   OPEN_STAGES.includes(b.stage) && !!b.planned_date && b.planned_date < today
+
+/** An in-house batch whose day has passed and isn't done. */
+export const isLate = (b: Pick<Batch, 'stage' | 'planned_date' | 'manufacturer_id'>, today = todayIST()) =>
+  !b.manufacturer_id && overdue(b, today)
+
+/** A contract-manufacturer batch whose day has passed and stock hasn't come in yet. */
+export const isAwaiting = (b: Pick<Batch, 'stage' | 'planned_date' | 'manufacturer_id'>, today = todayIST()) =>
+  !!b.manufacturer_id && overdue(b, today)
 
 // ---------- Loading ----------
 

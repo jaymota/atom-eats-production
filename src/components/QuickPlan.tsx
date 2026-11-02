@@ -6,6 +6,7 @@
 // in the list can be added on the spot (it gets a CUSTOM-0001 code and goes on "To check").
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { addDays, dayLabel, fmtN, todayIST, why } from '../lib/batches'
+import { likelyMakers, useMakers } from '../lib/makers'
 import { CATEGORIES, nextBatchNo, sizeText, type Product } from '../lib/products'
 import { supabase } from '../lib/supabase'
 import { Button, ErrorBox, Field, Input, Select } from './ui'
@@ -76,6 +77,9 @@ export default function QuickPlan({ day, onDone, onCancel }: { day: string; onDo
   const [mode, setMode] = useState<Record<string, Mode>>({})
   const [size, setSize] = useState<Record<string, number>>({})
   const [otherSize, setOtherSize] = useState<Record<string, boolean>>({})
+  const [maker, setMaker] = useState<Record<string, string>>({})
+  const makers = useMakers()
+  const makerName = (id: string) => makers.find((m) => m.id === id)?.name
   const [q, setQ] = useState('')
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -111,7 +115,7 @@ export default function QuickPlan({ day, onDone, onCancel }: { day: string; onDo
     .map((id) => {
       const p = byId[id]
       const g = sizeOf(p)
-      return { p, g, amt: num(id), mode: modeOf(id), units: toUnits(g, num(id), modeOf(id)), custom: g != null && g !== p.grammage_g }
+      return { p, g, amt: num(id), mode: modeOf(id), units: toUnits(g, num(id), modeOf(id)), custom: g != null && g !== p.grammage_g, maker: maker[id] || null }
     })
   const ready = picked.filter((x) => x.units && x.units > 0)
 
@@ -138,7 +142,7 @@ export default function QuickPlan({ day, onDone, onCancel }: { day: string; onDo
       const notes = [x.mode === 'units' ? null : `Planned as ${amountText(x.amt, x.mode)}`].filter(Boolean).join('; ')
       const { error: err } = await supabase.rpc('plan_batch', {
         p_product: x.p.id, p_date: day, p_units: x.units,
-        p_grammage: x.g, p_pack: x.custom && x.g && x.g >= 500 ? 'bulk' : null, p_notes: notes || null,
+        p_grammage: x.g, p_pack: x.custom && x.g && x.g >= 500 ? 'bulk' : null, p_notes: notes || null, p_maker: x.maker,
       })
       if (err) {
         setBusy(false)
@@ -201,6 +205,15 @@ export default function QuickPlan({ day, onDone, onCancel }: { day: string; onDo
                   </div>
                   {a > 0 && m !== 'units' && <span className="text-xs font-semibold text-ae-blue">= {units ? fmtN(units) : 0} units</span>}
                 </div>
+                <select aria-label={`Where ${p.name} is made`} value={maker[p.id] ?? ''} onChange={(e) => setMaker({ ...maker, [p.id]: e.target.value })}
+                  className={`mt-1 h-7 max-w-full rounded-md border px-1 text-xs font-semibold ${maker[p.id] ? 'border-ae-lilac bg-ae-lilac/30 text-ae-blue' : 'border-stone-300 bg-white text-stone-700'}`}>
+                  <option value="">Made in-house</option>
+                  {(() => {
+                    const likely = likelyMakers(p.category, makers.filter((x) => x.active))
+                    const rest = makers.filter((x) => x.active && !likely.includes(x))
+                    return [...likely, ...rest].map((x) => <option key={x.id} value={x.id}>at {x.name}</option>)
+                  })()}
+                </select>
               </div>
               <button type="button" aria-label="Less" className="h-11 w-11 shrink-0 rounded-lg border border-stone-300 bg-white text-xl font-bold" onClick={() => step(p.id, -1)}>−</button>
               <input inputMode={m === 'kg' ? 'decimal' : 'numeric'} aria-label={`${m} of ${p.name}`} className="h-11 w-16 shrink-0 rounded-lg border border-stone-300 text-center text-base"
@@ -219,7 +232,7 @@ export default function QuickPlan({ day, onDone, onCancel }: { day: string; onDo
             {picked.map((x) => (
               <button key={x.p.id} type="button" onClick={() => setAmount({ ...amount, [x.p.id]: '' })} title="Remove"
                 className="rounded-full bg-ae-yellow px-2.5 py-1 text-xs font-semibold text-ae-blue">
-                {x.p.name}{x.custom && x.g ? ` ${sizeText(x.g)}` : ''} · {amountText(x.amt, x.mode)}{x.mode !== 'units' && ` (${fmtN(x.units ?? 0)})`} ✕
+                {x.p.name}{x.custom && x.g ? ` ${sizeText(x.g)}` : ''} · {amountText(x.amt, x.mode)}{x.mode !== 'units' && ` (${fmtN(x.units ?? 0)})`}{x.maker && ` · at ${makerName(x.maker)}`} ✕
               </button>
             ))}
           </div>

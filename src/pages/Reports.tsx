@@ -12,7 +12,7 @@ import { supabase } from '../lib/supabase'
 type Kind = 'week' | 'month'
 
 interface OutRow extends Output {
-  batch: { batch_no: string | null; pack_type: PackType; grammage_g: number | null; product: { name: string; sku: string; category: string | null } }
+  batch: { batch_no: string | null; pack_type: PackType; grammage_g: number | null; maker: { name: string } | null; product: { name: string; sku: string; category: string | null } }
 }
 type PlanRow = Pick<Batch, 'id' | 'units_planned' | 'planned_date' | 'stage'> & { outputs: { made_on: string; units: number }[] }
 
@@ -39,7 +39,7 @@ async function fetchOutputs(from: string, to: string): Promise<OutRow[]> {
   const out: OutRow[] = []
   for (let i = 0; ; i += 1000) {
     const { data } = await supabase.from('batch_outputs')
-      .select('*, batch:batches(batch_no, pack_type, grammage_g, product:products(name, sku, category))')
+      .select('*, batch:batches(batch_no, pack_type, grammage_g, maker:manufacturers(name), product:products(name, sku, category))')
       .gte('made_on', from).lte('made_on', to).order('made_on').range(i, i + 999)
     out.push(...((data ?? []) as unknown as OutRow[]))
     if (!data || data.length < 1000) return out
@@ -119,6 +119,16 @@ export default function Reports() {
     return [...m.entries()].sort((a, b) => rank(a[0]) - rank(b[0]))
   }, [byProduct])
 
+  const byPlace = useMemo(() => {
+    const m = new Map<string, { units: number; kg: number }>()
+    for (const o of rows) {
+      const k = o.batch.maker?.name ?? 'In-house'
+      const c = m.get(k) ?? { units: 0, kg: 0 }
+      c.units += o.units; c.kg += Number(o.output_kg ?? 0); m.set(k, c)
+    }
+    return [...m.entries()].sort((a, b) => Number(b[0] === 'In-house') - Number(a[0] === 'In-house') || b[1].kg - a[1].kg)
+  }, [rows])
+
   const days: string[] = []
   for (let d = p.from; d <= p.to; d = addDays(d, 1)) days.push(d)
   const perDay = Object.fromEntries(days.map((d) => [d, 0]))
@@ -144,9 +154,10 @@ export default function Reports() {
       return { SKU: r.sku, Product: r.name, 'Size (g)': r.size ?? '', Category: r.category, Batches: r.batches.size, Units: r.units, 'Output (kg)': Math.round(r.kg * 100) / 100, 'Loss %': l == null ? '' : Math.round(l * 10) / 10 }
     })), 'By product')
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byCategory.map(([c, v]) => ({ Category: c, Units: v.units, 'Output (kg)': Math.round(v.kg * 100) / 100 }))), 'By category')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byPlace.map(([c, v]) => ({ 'Made at': c, Units: v.units, 'Output (kg)': Math.round(v.kg * 100) / 100 }))), 'By place')
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((o) => ({
       Date: o.made_on, SKU: o.batch.product.sku, Product: o.batch.product.name, 'Batch no.': o.batch.batch_no ?? '',
-      Pack: PACK_NAMES[o.batch.pack_type], 'Size (g)': o.batch.grammage_g ?? '', Units: o.units, 'Output (kg)': o.output_kg ?? '',
+      'Made at': o.batch.maker?.name ?? 'In-house', Pack: PACK_NAMES[o.batch.pack_type], 'Size (g)': o.batch.grammage_g ?? '', Units: o.units, 'Output (kg)': o.output_kg ?? '',
       'Input (kg)': o.input_kg ?? '', 'Packed by': o.packed_by ?? '', Note: o.note ?? '',
     }))), 'Every entry')
     XLSX.writeFile(wb, `Atom Eats production ${p.from} to ${p.to}.xlsx`)
@@ -204,6 +215,19 @@ export default function Reports() {
               <span>{dayLabel(p.from, {})}</span><span>{dayLabel(p.to, {})}</span>
             </div>
           </Card>
+
+          {byPlace.length > 1 && (
+            <Card className="p-0 sm:p-0">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-stone-200 text-left text-xs text-stone-500"><th className="px-4 py-2">Made at</th><th className="px-4 py-2 text-right">Units</th><th className="px-4 py-2 text-right">kg</th></tr></thead>
+                <tbody className="divide-y divide-stone-100">
+                  {byPlace.map(([c, v]) => (
+                    <tr key={c}><td className="px-4 py-2 font-semibold">{c}</td><td className="px-4 py-2 text-right">{fmtN(v.units)}</td><td className="px-4 py-2 text-right">{Math.round(v.kg * 10) / 10}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
 
           {byCategory.length > 0 && (
             <Card className="p-0 sm:p-0">
