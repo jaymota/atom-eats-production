@@ -6,7 +6,7 @@ import { Button, Card } from '../components/ui'
 import {
   PACK_NAMES, addDays, dayLabel, fmtKg, fmtN, lossPct, mondayOf, todayIST, type Batch, type Output, type PackType, type Stage,
 } from '../lib/batches'
-import { CATEGORIES } from '../lib/products'
+import { CATEGORIES, sizeText } from '../lib/products'
 import { supabase } from '../lib/supabase'
 
 type Kind = 'week' | 'month'
@@ -98,10 +98,11 @@ export default function Reports() {
   }).length
 
   const byProduct = useMemo(() => {
-    const m = new Map<string, { name: string; sku: string; category: string; units: number; kg: number; batches: Set<string>; outs: OutRow[] }>()
+    // One line per product and pack size, so 30 g pouches and 500 g bulk aren't added up as units.
+    const m = new Map<string, { key: string; name: string; sku: string; size: number | null; category: string; units: number; kg: number; batches: Set<string>; outs: OutRow[] }>()
     for (const o of rows) {
-      const k = o.batch.product.sku
-      const r = m.get(k) ?? { name: o.batch.product.name, sku: k, category: o.batch.product.category ?? 'Other', units: 0, kg: 0, batches: new Set(), outs: [] }
+      const k = `${o.batch.product.sku}|${o.batch.grammage_g ?? ''}`
+      const r = m.get(k) ?? { key: k, name: o.batch.product.name, sku: o.batch.product.sku, size: o.batch.grammage_g, category: o.batch.product.category ?? 'Other', units: 0, kg: 0, batches: new Set(), outs: [] }
       r.units += o.units; r.kg += Number(o.output_kg ?? 0); r.batches.add(o.batch_id); r.outs.push(o)
       m.set(k, r)
     }
@@ -140,7 +141,7 @@ export default function Reports() {
     ]), 'Summary')
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byProduct.map((r) => {
       const l = lossPct(r.outs)
-      return { SKU: r.sku, Product: r.name, Category: r.category, Batches: r.batches.size, Units: r.units, 'Output (kg)': Math.round(r.kg * 100) / 100, 'Loss %': l == null ? '' : Math.round(l * 10) / 10 }
+      return { SKU: r.sku, Product: r.name, 'Size (g)': r.size ?? '', Category: r.category, Batches: r.batches.size, Units: r.units, 'Output (kg)': Math.round(r.kg * 100) / 100, 'Loss %': l == null ? '' : Math.round(l * 10) / 10 }
     })), 'By product')
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byCategory.map(([c, v]) => ({ Category: c, Units: v.units, 'Output (kg)': Math.round(v.kg * 100) / 100 }))), 'By category')
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((o) => ({
@@ -227,8 +228,8 @@ export default function Reports() {
                   {byProduct.map((r) => {
                     const l = lossPct(r.outs)
                     return (
-                      <tr key={r.sku}>
-                        <td className="px-4 py-2"><div className="font-semibold">{r.name}</div><div className="font-mono text-xs text-stone-500">{r.sku}</div></td>
+                      <tr key={r.key}>
+                        <td className="px-4 py-2"><div className="font-semibold">{r.name}{r.size != null && <span className="font-normal text-stone-500"> · {sizeText(r.size)}</span>}</div><div className="font-mono text-xs text-stone-500">{r.sku}</div></td>
                         <td className="px-2 py-2 text-right">{r.batches.size}</td>
                         <td className="px-2 py-2 text-right font-semibold">{fmtN(r.units)}</td>
                         <td className="px-2 py-2 text-right">{Math.round(r.kg * 10) / 10}</td>

@@ -26,3 +26,6 @@ export interface Product {
 /** The batch number the next batch of this product will get, e.g. "PDSWSP57". */
 export const nextBatchNo = (p: Pick<Product, 'batch_prefix' | 'next_batch_no'>) =>
   p.batch_prefix ? `${p.batch_prefix}${p.next_batch_no}` : null
+
+/** "30 g", "500 g", "1 kg" */
+export const sizeText = (g: number) => (g >= 1000 && g % 1000 === 0 ? `${g / 1000} kg` : `${g} g`)
