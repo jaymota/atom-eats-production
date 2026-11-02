@@ -2,7 +2,7 @@
 // the big "next stage" button.
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { NEXT, PACK_NAMES, STAGE_NAMES, STAGE_TONE, dayLabel, fmtN, isLate, unitsDone, why, type Batch } from '../lib/batches'
+import { NEXT, PACK_NAMES, STAGE_NAMES, STAGE_TONE, dayLabel, expectedKg, fmtKg, fmtN, isLate, unitsDone, why, type Batch } from '../lib/batches'
 import { countsChanged } from '../lib/counts'
 import { supabase } from '../lib/supabase'
 import { Button } from './ui'
@@ -36,7 +36,7 @@ export function BatchCard({ b, workerNames, showDate, onMoved }: {
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+    <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <Link to={`/batch/${b.id}`} className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold text-stone-900">{b.product.name}</span>
@@ -45,7 +45,7 @@ export function BatchCard({ b, workerNames, showDate, onMoved }: {
         </div>
         <div className="text-sm text-stone-600">
           {b.batch_no && <span className="font-mono">{b.batch_no} · </span>}
-          {b.units_planned != null && <>{fmtN(b.units_planned)} × {b.grammage_g} g {PACK_NAMES[b.pack_type].toLowerCase()}</>}
+          {b.units_planned != null && <>{fmtN(b.units_planned)} × {b.grammage_g} g {PACK_NAMES[b.pack_type].toLowerCase()}{expectedKg(b) != null && <> · {fmtKg(expectedKg(b))}</>}</>}
           {done > 0 && <> · <b>{fmtN(done)}</b> packed</>}
           {showDate && b.planned_date && <> · {dayLabel(b.planned_date)}</>}
         </div>
@@ -56,8 +56,8 @@ export function BatchCard({ b, workerNames, showDate, onMoved }: {
       </Link>
       {onMoved && next && (
         next.to === 'inventory'
-          ? <Link to={`/batch/${b.id}?do=inventory`} className="min-h-12 rounded-lg bg-ae-blue px-4 py-3 text-sm font-semibold text-ae-cream">{next.label}</Link>
-          : <Button className="min-h-12 px-4 text-sm" disabled={busy} onClick={move}>{busy ? '…' : next.label}</Button>
+          ? <Link to={`/batch/${b.id}?do=inventory`} className="min-h-12 rounded-lg bg-ae-blue px-4 py-3 text-center text-base font-semibold text-ae-cream sm:text-sm">{next.label}</Link>
+          : <Button className="min-h-12 px-4 sm:text-sm" disabled={busy} onClick={move}>{busy ? '…' : next.label}</Button>
       )}
     </div>
   )

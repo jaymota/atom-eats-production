@@ -11,6 +11,7 @@ import { isAdmin } from '../lib/format'
 import { supabase } from '../lib/supabase'
 import { useWorkers } from '../lib/workers'
 
+const batchesText = (n: number) => `${n} ${n === 1 ? 'batch' : 'batches'}`
 const plannedUnits = (list: Batch[]) => list.filter((b) => b.stage !== 'cancelled').reduce((s, b) => s + (b.units_planned ?? 0), 0)
 
 export default function Plan() {
@@ -70,7 +71,7 @@ export function DayPlan({ day, setDay, plan = false, floor = false }: { day: str
           <Button tone="plain" className="min-h-10 px-3" onClick={() => setDay(addDays(day, -1))} aria-label="Previous day">‹</Button>
           <div className="flex-1 text-center font-semibold text-stone-800">
             {when ? `${when} · ` : ''}{dayLabel(day, { weekday: true, year: !when })}
-            <div className="text-xs font-normal text-stone-500">{list.filter((b) => b.stage !== 'cancelled').length} batches · {fmtN(plannedUnits(list))} units</div>
+            <div className="text-xs font-normal text-stone-500">{batchesText(list.filter((b) => b.stage !== 'cancelled').length)} · {fmtN(plannedUnits(list))} units</div>
           </div>
           <Button tone="plain" className="min-h-10 px-3" onClick={() => setDay(addDays(day, 1))} aria-label="Next day">›</Button>
         </div>
@@ -130,7 +131,7 @@ function WeekPlan({ monday, setWeek, openDay }: { monday: string; setWeek: (w: s
         <Button tone="plain" className="min-h-10 px-3" onClick={() => setWeek(addDays(monday, -7))} aria-label="Previous week">‹</Button>
         <div className="flex-1 text-center font-semibold text-stone-800">
           {dayLabel(monday, {})} – {dayLabel(days[6], { year: true })}
-          <div className="text-xs font-normal text-stone-500">{live.length} batches · {fmtN(plannedUnits(list))} units</div>
+          <div className="text-xs font-normal text-stone-500">{batchesText(live.length)} · {fmtN(plannedUnits(list))} units</div>
         </div>
         <Button tone="plain" className="min-h-10 px-3" onClick={() => setWeek(addDays(monday, 7))} aria-label="Next week">›</Button>
       </div>

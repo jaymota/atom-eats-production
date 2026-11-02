@@ -256,6 +256,10 @@ function Edit({ b, busy, onSave, onCancel }: { b: Batch; busy: boolean; onSave: 
       }} className="grid gap-3 sm:grid-cols-3">
         <Field label="Date"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></Field>
         <Field label="Units"><Input value={units} onChange={(e) => setUnits(e.target.value.replace(/\D/g, ''))} inputMode="numeric" required /></Field>
+        <Field label="or kg" hint="Works out the units">
+          <Input inputMode="decimal" placeholder={units && grams ? String(Math.round((Number(units) * Number(grams)) / 10) / 100) : 'kg'}
+            onChange={(e) => { const kg = Number(e.target.value.replace(/[^\d.]/g, '')); if (kg > 0 && Number(grams) > 0) setUnits(String(Math.round((kg * 1000) / Number(grams)))) }} />
+        </Field>
         <Field label="Size (g)"><Input value={grams} onChange={(e) => setGrams(e.target.value)} inputMode="decimal" /></Field>
         <Field label="Pack">
           <Select value={pack} onChange={(e) => setPack(e.target.value as PackType)}>
