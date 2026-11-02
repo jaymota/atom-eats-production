@@ -10,6 +10,7 @@ import {
   lossPct, todayIST, unitsDone, why, type Batch, type PackType, type Stage,
 } from '../lib/batches'
 import { istDateTime, isAdmin } from '../lib/format'
+import { countsChanged } from '../lib/counts'
 import { supabase } from '../lib/supabase'
 import { useWorkers } from '../lib/workers'
 
@@ -44,6 +45,7 @@ export default function BatchPage() {
     setBusy(false)
     if (err) { setError(why(err)); return false }
     setMode('')
+    countsChanged()
     await load()
     return true
   }

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { NEXT, PACK_NAMES, STAGE_NAMES, STAGE_TONE, dayLabel, fmtN, isLate, unitsDone, why, type Batch } from '../lib/batches'
+import { countsChanged } from '../lib/counts'
 import { supabase } from '../lib/supabase'
 import { Button } from './ui'
 
@@ -30,6 +31,7 @@ export function BatchCard({ b, workerNames, showDate, onMoved }: {
     const { error: err } = await supabase.rpc('move_batch', { p_id: b.id, p_to: next.to })
     setBusy(false)
     if (err) return setError(why(err))
+    countsChanged()
     onMoved?.()
   }
 

@@ -1,58 +1,88 @@
-// Home = Today. Every open batch that is due today or earlier (late), grouped by stage,
-// with one big button to move each forward. Admins also see the last 7 days at a glance.
+// Today. Admins can plan today right here. Every open batch due today or earlier is listed by
+// stage, with one big button to move it forward (the floor view). Late batches get a red box.
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BatchCard } from '../components/BatchCard'
-import { Card } from '../components/ui'
+import QuickPlan from '../components/QuickPlan'
+import { Button, Card, OkBox } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import {
   FLOOR_STAGES, STAGE_NAMES, addDays, dayLabel, fmtN, isLate, loadBatches, todayIST, type Batch,
 } from '../lib/batches'
 import { isAdmin } from '../lib/format'
+import { countsChanged } from '../lib/counts'
+import { supabase } from '../lib/supabase'
 import { useWorkers } from '../lib/workers'
 
 export default function Home() {
   const { me } = useAuth()
+  const admin = isAdmin(me?.role)
   const { names } = useWorkers()
   const [open, setOpen] = useState<Batch[] | null>(null)
-  const [week, setWeek] = useState<Batch[]>([])
+  const [packedToday, setPackedToday] = useState(0)
+  const [tomorrow, setTomorrow] = useState<number | null>(null)
+  const [planning, setPlanning] = useState(false)
+  const [msg, setMsg] = useState('')
   const today = todayIST()
 
   const load = useCallback(async () => {
-    const [o, w] = await Promise.all([
+    const [o, outs, tm] = await Promise.all([
       loadBatches((q) => q.in('stage', FLOOR_STAGES).lte('planned_date', today).order('planned_date').order('created_at')),
-      loadBatches((q) => q.gte('planned_date', addDays(today, -6)).lte('planned_date', today).neq('stage', 'cancelled')),
+      supabase.from('batch_outputs').select('units').eq('made_on', today),
+      supabase.from('batches').select('id', { count: 'exact', head: true }).eq('planned_date', addDays(today, 1)).neq('stage', 'cancelled'),
     ])
     setOpen(o)
-    setWeek(w)
+    setPackedToday((outs.data ?? []).reduce((s, r) => s + r.units, 0))
+    setTomorrow(tm.count ?? 0)
+    countsChanged()
   }, [today])
   useEffect(() => { load() }, [load])
 
   if (!me) return null
   const list = open ?? []
   const late = list.filter((b) => isLate(b, today))
-  const planned7 = week.reduce((s, b) => s + (b.units_planned ?? 0), 0)
-  const made7 = week.reduce((s, b) => s + b.outputs.reduce((t, o) => t + o.units, 0), 0)
+  const onToday = list.filter((b) => b.planned_date === today)
+
+  const tiles = [
+    { to: '/plan?view=day&day=' + today, label: 'To do today', n: onToday.length },
+    { to: '/reports', label: 'Packed today', n: fmtN(packedToday) },
+    { to: '/plan?view=day&day=' + addDays(today, 1), label: 'Tomorrow', n: tomorrow ?? '…' },
+  ]
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-bold text-ae-blue">Today · {dayLabel(today)}</h2>
-        <Link to="/plan" className="text-sm font-semibold text-ae-blue underline">Week plan</Link>
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold text-ae-blue">Today · {dayLabel(today)}</h2>
+
+      <div className="grid grid-cols-3 gap-3">
+        {tiles.map((t) => (
+          <Link key={t.label} to={t.to} className="rounded-2xl border-2 border-ae-blue/20 bg-white p-3 text-center shadow-sm active:bg-ae-blue/5 sm:p-4">
+            <div className="text-3xl font-bold text-ae-blue sm:text-4xl">{open ? t.n : '…'}</div>
+            <div className="mt-1 text-sm font-semibold text-stone-700">{t.label}</div>
+          </Link>
+        ))}
       </div>
 
-      {isAdmin(me.role) && (
-        <div className="grid grid-cols-3 gap-3">
-          <Tile label="Today" value={list.filter((b) => b.planned_date === today).length} />
-          <Tile label="Late" value={late.length} red={late.length > 0} />
-          <Tile label="Last 7 days" value={planned7 ? `${Math.round((made7 / planned7) * 100)}%` : '—'} sub={`${fmtN(made7)} of ${fmtN(planned7)} units`} />
-        </div>
+      <OkBox>{msg}</OkBox>
+      {admin && !planning && <Button className="w-full" onClick={() => { setPlanning(true); setMsg('') }}>+ Plan today</Button>}
+      {planning && <QuickPlan day={today} onCancel={() => setPlanning(false)} onDone={(m) => { setPlanning(false); setMsg(m); load() }} />}
+
+      {late.length > 0 && (
+        <Card className="border-red-200 bg-red-50/50">
+          <h3 className="mb-1 font-semibold text-red-800">⚠ Late ({late.length})</h3>
+          <ul className="space-y-1 text-sm">
+            {late.slice(0, 6).map((b) => (
+              <li key={b.id}>
+                <Link to={`/batch/${b.id}`} className="text-stone-800 underline decoration-stone-300">{b.product.name}</Link>{' '}
+                <span className="text-xs text-stone-500">{b.batch_no} · {STAGE_NAMES[b.stage]} · planned {dayLabel(b.planned_date!)}</span>
+              </li>
+            ))}
+            {late.length > 6 && <li className="text-xs text-stone-500">+{late.length - 6} more (below)</li>}
+          </ul>
+        </Card>
       )}
 
       {open === null && <p className="text-sm text-stone-500">Loading…</p>}
-      {open && !list.length && (
-        <Card><p className="text-stone-600">Nothing planned for today.</p></Card>
-      )}
+      {open && !list.length && !planning && <Card><p className="text-stone-600">Nothing to do today.</p></Card>}
 
       {FLOOR_STAGES.map((s) => {
         const here = list.filter((b) => b.stage === s)
@@ -69,15 +99,5 @@ export default function Home() {
         )
       })}
     </div>
-  )
-}
-
-function Tile({ label, value, sub, red }: { label: string; value: string | number; sub?: string; red?: boolean }) {
-  return (
-    <Card className="p-3 sm:p-4">
-      <div className="text-xs font-semibold text-stone-500">{label}</div>
-      <div className={`text-2xl font-bold ${red ? 'text-red-700' : 'text-ae-blue'}`}>{value}</div>
-      {sub && <div className="text-xs text-stone-500">{sub}</div>}
-    </Card>
   )
 }

@@ -3,13 +3,14 @@ import { Logo } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import { ROLE_NAMES } from '../lib/format'
 import { mayOpen } from '../lib/access'
+import { useCounts, type Counts } from '../lib/counts'
 
-type L = { to: string; label: string; end?: boolean }
+type L = { to: string; label: string; end?: boolean; count?: keyof Counts }
 const LINKS: L[] = [
-  { to: '/', label: 'Today', end: true },
+  { to: '/', label: 'Today', end: true, count: 'today' },
   { to: '/plan', label: 'Plan' },
   { to: '/reports', label: 'Reports' },
-  { to: '/products', label: 'Products' },
+  { to: '/products', label: 'Products', count: 'check' },
   { to: '/team', label: 'Team' },
   { to: '/activity', label: 'Activity' },
   { to: '/my-pin', label: 'My PIN' },
@@ -17,6 +18,7 @@ const LINKS: L[] = [
 
 export default function Layout() {
   const { me, signOut } = useAuth()
+  const counts = useCounts()
   return (
     <div className="min-h-screen bg-ae-cream">
       <header className="border-b border-ae-blue/15 bg-ae-cream">
@@ -43,6 +45,7 @@ export default function Layout() {
               }
             >
               {l.label}
+              {l.count && counts && counts[l.count] > 0 && <span className="ml-1.5 rounded-full bg-ae-blue px-1.5 py-0.5 text-xs text-ae-cream">{counts[l.count]}</span>}
             </NavLink>
           ))}
         </nav>
