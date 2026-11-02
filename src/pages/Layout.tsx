@@ -6,7 +6,9 @@ import { mayOpen } from '../lib/access'
 
 type L = { to: string; label: string; end?: boolean }
 const LINKS: L[] = [
-  { to: '/', label: 'Home', end: true },
+  { to: '/', label: 'Today', end: true },
+  { to: '/plan', label: 'Plan' },
+  { to: '/reports', label: 'Reports' },
   { to: '/products', label: 'Products' },
   { to: '/team', label: 'Team' },
   { to: '/activity', label: 'Activity' },

@@ -4,11 +4,14 @@ import type { ReactNode } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { homeFor, mayOpen } from './lib/access'
 import Activity from './pages/Activity'
+import BatchPage from './pages/BatchPage'
 import ChoosePin from './pages/ChoosePin'
 import Home from './pages/Home'
 import Layout from './pages/Layout'
 import Login from './pages/Login'
+import Plan from './pages/Plan'
 import Products from './pages/Products'
+import Reports from './pages/Reports'
 import Team from './pages/Team'
 
 /** A page the person's role may not open sends them to their own start page. */
@@ -31,6 +34,9 @@ function Gate() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Only path="/"><Home /></Only>} />
+          <Route path="plan" element={<Only path="/plan"><Plan /></Only>} />
+          <Route path="batch/:id" element={<Only path="/batch/:id"><BatchPage /></Only>} />
+          <Route path="reports" element={<Only path="/reports"><Reports /></Only>} />
           <Route path="products" element={<Only path="/products"><Products /></Only>} />
           <Route path="team" element={<Only path="/team"><Team /></Only>} />
           <Route path="activity" element={<Only path="/activity"><Activity /></Only>} />

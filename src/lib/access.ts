@@ -3,6 +3,9 @@ const ALL = ['super_admin', 'admin', 'floor']
 
 export const PAGE_ROLES: Record<string, string[]> = {
   '/': ALL,
+  '/plan': ALL,
+  '/batch/:id': ALL,
+  '/reports': ALL,
   '/products': ALL,
   '/team': ALL,
   '/activity': ALL,
