@@ -6,7 +6,7 @@
 // in the list can be added on the spot (it gets a CUSTOM-0001 code and goes on "To check").
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { addDays, dayLabel, fmtN, todayIST, why } from '../lib/batches'
-import { likelyMakers, useMakers } from '../lib/makers'
+import { addMakerPrompt, likelyMakers, useMakers } from '../lib/makers'
 import { CATEGORIES, nextBatchNo, sizeText, type Product } from '../lib/products'
 import { supabase } from '../lib/supabase'
 import { Button, ErrorBox, Field, Input, Select } from './ui'
@@ -205,7 +205,10 @@ export default function QuickPlan({ day, onDone, onCancel }: { day: string; onDo
                   </div>
                   {a > 0 && m !== 'units' && <span className="text-xs font-semibold text-ae-blue">= {units ? fmtN(units) : 0} units</span>}
                 </div>
-                <select aria-label={`Where ${p.name} is made`} value={maker[p.id] ?? ''} onChange={(e) => setMaker({ ...maker, [p.id]: e.target.value })}
+                <select aria-label={`Where ${p.name} is made`} value={maker[p.id] ?? ''} onChange={async (e) => {
+                    const v = e.target.value === '__new' ? await addMakerPrompt() : e.target.value
+                    setMaker({ ...maker, [p.id]: v ?? maker[p.id] ?? '' })
+                  }}
                   className={`mt-1 h-7 max-w-full rounded-md border px-1 text-xs font-semibold ${maker[p.id] ? 'border-ae-lilac bg-ae-lilac/30 text-ae-blue' : 'border-stone-300 bg-white text-stone-700'}`}>
                   <option value="">Made in-house</option>
                   {(() => {
@@ -213,6 +216,7 @@ export default function QuickPlan({ day, onDone, onCancel }: { day: string; onDo
                     const rest = makers.filter((x) => x.active && !likely.includes(x))
                     return [...likely, ...rest].map((x) => <option key={x.id} value={x.id}>at {x.name}</option>)
                   })()}
+                  <option value="__new">+ New manufacturer…</option>
                 </select>
               </div>
               <button type="button" aria-label="Less" className="h-11 w-11 shrink-0 rounded-lg border border-stone-300 bg-white text-xl font-bold" onClick={() => step(p.id, -1)}>−</button>

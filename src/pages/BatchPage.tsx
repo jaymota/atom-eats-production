@@ -11,7 +11,7 @@ import {
 } from '../lib/batches'
 import { countsChanged } from '../lib/counts'
 import { istDateTime, isAdmin } from '../lib/format'
-import { useMakers, type Maker } from '../lib/makers'
+import { addMakerPrompt, useMakers, type Maker } from '../lib/makers'
 import { supabase } from '../lib/supabase'
 import { useWorkers, type Worker } from '../lib/workers'
 
@@ -250,9 +250,13 @@ function Edit({ b, makers, busy, onSave, onCancel }: { b: Batch; makers: Maker[]
           </Select>
         </Field>
         <Field label="Made at">
-          <Select value={maker} onChange={(e) => setMaker(e.target.value)}>
+          <Select value={maker} onChange={async (e) => {
+            const v = e.target.value === '__new' ? await addMakerPrompt() : e.target.value
+            setMaker(v ?? maker)
+          }}>
             <option value="">In-house</option>
             {makers.filter((m) => m.active || m.id === maker).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            <option value="__new">+ New manufacturer…</option>
           </Select>
         </Field>
         <Field label="Batch no."><Input value={batchNo} onChange={(e) => setBatchNo(e.target.value.toUpperCase())} /></Field>
