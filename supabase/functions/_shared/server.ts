@@ -10,6 +10,7 @@ const ALLOWED_ORIGINS = [
   'https://production.atomeats.com',
   'http://localhost:5173',
   'http://localhost:5174',
+  'http://localhost:5175',
 ]
 
 export function cors(req: Request): Record<string, string> {
