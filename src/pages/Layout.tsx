@@ -9,6 +9,7 @@ type L = { to: string; label: string; end?: boolean; count?: keyof Counts }
 const LINKS: L[] = [
   { to: '/', label: 'Today', end: true, count: 'today' },
   { to: '/plan', label: 'Plan' },
+  { to: '/stock', label: 'Stock', count: 'transfers' },
   { to: '/bulk', label: 'Bulk stock' },
   { to: '/reports', label: 'Reports' },
   { to: '/products', label: 'Products', count: 'check' },
@@ -22,7 +23,7 @@ export default function Layout() {
   const counts = useCounts()
   return (
     <div className="min-h-screen bg-ae-cream">
-      <header className="border-b border-ae-blue/15 bg-ae-cream">
+      <header className="border-b border-ae-blue/15 bg-ae-cream print:hidden">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <Logo className="h-10 shrink-0" />

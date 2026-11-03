@@ -1,15 +1,17 @@
-export type Role = 'super_admin' | 'admin' | 'floor'
+export type Role = 'super_admin' | 'admin' | 'floor' | 'warehouse'
 
 export const ROLE_NAMES: Record<Role, string> = {
   super_admin: 'Super admin',
   admin: 'Admin',
   floor: 'Floor / QC',
+  warehouse: 'Warehouse',
 }
 
 export const ROLE_HELP: Record<Role, string> = {
   super_admin: 'Everything, including admins, recipe access and settings.',
   admin: 'Plans production, changes stock, manages the team.',
-  floor: 'Assigns batches, moves them through the stages, records goods received.',
+  floor: 'Records making and filling, sends stock from Gala 17.',
+  warehouse: 'Receives stock at Gala 6. Sees everything, can’t plan or change batches.',
 }
 
 /** Planning, stock changes and the team. */

@@ -6,6 +6,8 @@ import { homeFor, mayOpen } from './lib/access'
 import Activity from './pages/Activity'
 import BatchPage from './pages/BatchPage'
 import BulkStock from './pages/BulkStock'
+import Stock from './pages/Stock'
+import TransferPage from './pages/TransferPage'
 import ChoosePin from './pages/ChoosePin'
 import Home from './pages/Home'
 import Layout from './pages/Layout'
@@ -18,7 +20,7 @@ import Team from './pages/Team'
 /** A page the person's role may not open sends them to their own start page. */
 function Only({ path, children }: { path: string; children: ReactNode }) {
   const { me } = useAuth()
-  return mayOpen(path, me?.role) ? <>{children}</> : <Navigate to={homeFor()} replace />
+  return mayOpen(path, me?.role) ? <>{children}</> : <Navigate to={homeFor(me?.role)} replace />
 }
 
 function Gate() {
@@ -37,13 +39,15 @@ function Gate() {
           <Route index element={<Only path="/"><Home /></Only>} />
           <Route path="plan" element={<Only path="/plan"><Plan /></Only>} />
           <Route path="batch/:id" element={<Only path="/batch/:id"><BatchPage /></Only>} />
+          <Route path="stock" element={<Only path="/stock"><Stock /></Only>} />
+          <Route path="transfer/:id" element={<Only path="/transfer/:id"><TransferPage /></Only>} />
           <Route path="bulk" element={<Only path="/bulk"><BulkStock /></Only>} />
           <Route path="reports" element={<Only path="/reports"><Reports /></Only>} />
           <Route path="products" element={<Only path="/products"><Products /></Only>} />
           <Route path="team" element={<Only path="/team"><Team /></Only>} />
           <Route path="activity" element={<Only path="/activity"><Activity /></Only>} />
           <Route path="my-pin" element={<Only path="/my-pin"><ChoosePin first={false} /></Only>} />
-          <Route path="*" element={<Navigate to={homeFor()} replace />} />
+          <Route path="*" element={<Navigate to={homeFor(me.role)} replace />} />
         </Route>
       </Routes>
     </HashRouter>

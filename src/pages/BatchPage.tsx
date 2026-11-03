@@ -100,7 +100,7 @@ export default function BatchPage() {
 
       <ErrorBox>{error}</ErrorBox>
 
-      {open && !mode && (
+      {open && !mode && me?.role !== 'warehouse' && (
         <div className="space-y-2">
           {step && <Button className="min-h-14 w-full text-lg" onClick={() => setMode(step.mode)}>{step.label}</Button>}
           <div className="flex flex-wrap gap-2">
@@ -237,15 +237,19 @@ function Receive({ b, busy, onPacked, onBulk, onCancel }: {
   const [date, setDate] = useState(todayIST())
   const [note, setNote] = useState('')
   const [more, setMore] = useState(false)
+  const [shelf, setShelf] = useState('')
+  const [err, setErr] = useState('')
   const g = b.grammage_g ?? 0
   const planKg = b.units_planned && g ? round3((b.units_planned * g) / 1000) : null
   const kgFromUnits = Number(units) > 0 && g ? round3((Number(units) * g) / 1000) : null
   const kgNow = how === 'packed' ? (kg ? Number(kg) : kgFromUnits) : Number(kg) || null
   const short = planKg != null && kgNow != null ? round3(planKg - kgNow) : null
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (how === 'packed') {
+      const se = await saveShelf(b, shelf)
+      if (se) return setErr(se)
       const n = Number(units)
       if (b.units_planned && n > b.units_planned * 2 && !confirm(`${n} units is ${Math.round(n / b.units_planned)}× the plan. Is that right?`)) return
       onPacked({ p_date: date, p_units: Math.round(n), p_output_kg: kg ? Number(kg) : null, p_input_kg: null, p_more: more, p_note: note || null })
@@ -263,6 +267,8 @@ function Receive({ b, busy, onPacked, onBulk, onCancel }: {
             </button>
           ))}
         </div>
+        {how === 'packed' && <LabelInfo b={b} date={date} shelf={shelf} setShelf={setShelf} />}
+        <ErrorBox>{err}</ErrorBox>
         <div className="grid gap-3 sm:grid-cols-2">
           {how === 'packed' && (
             <Field label="Units received">
@@ -303,6 +309,42 @@ function Receive({ b, busy, onPacked, onBulk, onCancel }: {
   )
 }
 
+/** Made date + shelf life → expiry. */
+function expiryOf(made: string, months: number | null | undefined): string | null {
+  if (!months) return null
+  const d = new Date(`${made}T00:00:00Z`)
+  d.setUTCMonth(d.getUTCMonth() + months)
+  return d.toISOString().slice(0, 10)
+}
+
+/** Shows batch no. · mfg · expiry, and asks for the shelf life if the product has none yet. */
+function LabelInfo({ b, date, shelf, setShelf }: { b: Batch; date: string; shelf: string; setShelf: (v: string) => void }) {
+  const known = b.product.shelf_life_months
+  const months = known ?? (Number(shelf) || null)
+  const exp = expiryOf(date, months)
+  return (
+    <div className={`rounded-lg p-3 text-sm ${known ? 'bg-ae-cream/50' : 'border border-amber-300 bg-amber-50'}`}>
+      <div className="font-semibold text-stone-800">
+        Batch <span className="font-mono">{b.batch_no ?? '—'}</span> · Mfg {dayLabel(date, { weekday: false, year: true })} · Exp {exp ? dayLabel(exp, { weekday: false, year: true }) : '—'}
+      </div>
+      {!known && (
+        <div className="mt-2 flex items-center gap-2">
+          <span className="font-semibold text-amber-900">Shelf life not set. Months:</span>
+          <input inputMode="numeric" value={shelf} onChange={(e) => setShelf(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 6"
+            className="h-10 w-20 rounded-lg border border-amber-400 bg-white text-center font-bold" aria-label="Shelf life in months" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Saves the shelf life first if it was just filled in. */
+async function saveShelf(b: Batch, shelf: string): Promise<string | null> {
+  if (b.product.shelf_life_months || !Number(shelf)) return null
+  const { error } = await supabase.rpc('set_shelf_life', { p_product: b.product_id, p_months: Number(shelf) })
+  return error ? why(error) : null
+}
+
 interface Line { grams: string; units: string }
 
 /** Step 2: units filled, one line per pack size, plus optional kg into Bulk stock. Rest = loss. */
@@ -317,6 +359,8 @@ function Fill({ b, workers, busy, onSave, onCancel }: { b: Batch; workers: Worke
   const [note, setNote] = useState('')
   const [more, setMore] = useState(false)
   const [input, setInput] = useState('')
+  const [shelf, setShelf] = useState('')
+  const [err, setErr] = useState('')
 
   const lineKg = (l: Line) => (Number(l.units) > 0 && Number(l.grams) > 0 ? (Number(l.units) * Number(l.grams)) / 1000 : 0)
   const filledKg = round3(lines.reduce((s, l) => s + lineKg(l), 0))
@@ -326,8 +370,10 @@ function Fill({ b, workers, busy, onSave, onCancel }: { b: Batch; workers: Worke
   const set = (i: number, k: keyof Line, v: string) => setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
   const sizes = [...new Set([g0, 30, 50, 70, 120, 200, 250, 500, 1000].filter((x) => x > 0))].sort((x, y) => x - y)
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
+    const se = await saveShelf(b, shelf)
+    if (se) return setErr(se)
     if (leftover != null && leftover < -0.05 && !confirm(`That's ${fmtKg(-leftover)} more than the ${fmtKg(fromKg)} made. Is that right?`)) return
     if (b.units_planned && units > b.units_planned * 2 && !confirm(`${units} units is ${Math.round(units / b.units_planned)}× the plan. Is that right?`)) return
     onSave({
@@ -339,6 +385,8 @@ function Fill({ b, workers, busy, onSave, onCancel }: { b: Batch; workers: Worke
   return (
     <Card>
       <form onSubmit={submit} className="space-y-4">
+        <LabelInfo b={b} date={date} shelf={shelf} setShelf={setShelf} />
+        <ErrorBox>{err}</ErrorBox>
         {fromKg != null && <p className="text-sm font-semibold text-sky-800">{fmtKg(fromKg)} to fill</p>}
         <div className="space-y-2">
           {lines.map((l, i) => (

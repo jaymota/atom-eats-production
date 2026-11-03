@@ -114,12 +114,15 @@ export default function Products() {
   useEffect(() => { load() }, [load])
 
   const all = rows ?? []
-  const counts = { live: all.filter((p) => p.live).length, off: all.filter((p) => !p.live).length, check: all.filter((p) => p.needs_check.length).length }
+  // A live product with no shelf life can't get expiry dates, so it counts as "to check".
+  const noShelf = (p: Product) => p.live && p.shelf_life_months == null
+  const checks = (p: Product) => [...p.needs_check, ...(noShelf(p) ? ['No shelf life: needed for expiry dates'] : [])]
+  const counts = { live: all.filter((p) => p.live).length, off: all.filter((p) => !p.live).length, check: all.filter((p) => checks(p).length).length }
 
   const shown = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean)
     return all
-      .filter((p) => (tab === 'live' ? p.live : tab === 'off' ? !p.live : p.needs_check.length > 0))
+      .filter((p) => (tab === 'live' ? p.live : tab === 'off' ? !p.live : checks(p).length > 0))
       .filter((p) => words.every((w) => `${p.name} ${p.sku} ${p.category ?? ''}`.toLowerCase().includes(w)))
   }, [all, tab, q])
 
@@ -190,7 +193,7 @@ export default function Products() {
                           {' · '}Next batch: <span className="font-mono">{nextBatchNo(p) ?? '—'}</span>
                         </div>
                         {p.notes && <div className="text-xs text-stone-500">{p.notes}</div>}
-                        {p.needs_check.map((c) => <div key={c} className="mt-1 text-xs font-semibold text-amber-800">⚠ {c}</div>)}
+                        {checks(p).map((c) => <div key={c} className="mt-1 text-xs font-semibold text-amber-800">⚠ {c}</div>)}
                       </div>
                       {admin && (
                         <div className="flex gap-2">

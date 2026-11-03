@@ -92,7 +92,7 @@ export function DayPlan({ day, setDay, plan = false, floor = false }: { day: str
           <ul className="divide-y divide-stone-100">
             {list.map((b) => (
               <li key={b.id} className={b.stage === 'cancelled' ? 'opacity-50' : ''}>
-                <BatchCard b={b} workerNames={names} floor={floor || day <= today} />
+                <BatchCard b={b} workerNames={names} floor={me?.role !== 'warehouse' && (floor || day <= today)} />
               </li>
             ))}
           </ul>

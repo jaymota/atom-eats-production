@@ -99,7 +99,7 @@ export default function Home() {
           <h3 className="text-sm font-semibold text-stone-500">{label} · {here.length}</h3>
           <Card className="p-0 sm:p-0">
             <ul className="divide-y divide-stone-100">
-              {here.map((b) => <li key={b.id}><BatchCard b={b} workerNames={names} showDate={b.planned_date !== today} floor /></li>)}
+              {here.map((b) => <li key={b.id}><BatchCard b={b} workerNames={names} showDate={b.planned_date !== today} floor={me.role !== 'warehouse'} /></li>)}
             </ul>
           </Card>
         </div>
