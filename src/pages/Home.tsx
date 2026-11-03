@@ -47,7 +47,7 @@ export default function Home() {
 
   const tiles = [
     { to: '/plan?view=day&day=' + today, label: 'To do today', n: onToday.length },
-    { to: '/reports', label: 'Packed today', n: fmtN(packedToday) },
+    { to: me?.role === 'floor' ? '/plan?view=day&day=' + today : '/reports', label: 'Packed today', n: fmtN(packedToday) },
     { to: '/plan?view=day&day=' + addDays(today, 1), label: 'Tomorrow', n: tomorrow ?? '…' },
   ]
 

@@ -46,7 +46,7 @@ export default function Layout() {
                 `whitespace-nowrap border-b-2 px-3 py-3 text-sm font-semibold ${isActive ? 'border-ae-blue text-ae-blue' : 'border-transparent text-stone-600 hover:text-stone-900'}`
               }
             >
-              {l.label}
+              {l.to === '/stock' && me?.role === 'warehouse' ? 'Transfers' : l.label}
               {l.count && counts && counts[l.count] > 0 && <span className="ml-1.5 rounded-full bg-ae-blue px-1.5 py-0.5 text-xs text-ae-cream">{counts[l.count]}</span>}
             </NavLink>
           ))}

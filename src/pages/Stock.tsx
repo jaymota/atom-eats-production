@@ -21,7 +21,9 @@ export default function Stock() {
   const admin = isAdmin(me?.role)
   const factory = me?.role === 'floor' || admin
   const [params, setParams] = useSearchParams()
-  const tab: Tab = (['gala17', 'gala6', 'transfers'] as const).find((t) => t === params.get('tab')) ?? (me?.role === 'warehouse' ? 'transfers' : 'gala17')
+  // Warehouse logins only see transfers.
+  const warehouse = me?.role === 'warehouse'
+  const tab: Tab = warehouse ? 'transfers' : (['gala17', 'gala6', 'transfers'] as const).find((t) => t === params.get('tab')) ?? 'gala17'
   const [rows, setRows] = useState<StockRow[] | null>(null)
   const [transfers, setTransfers] = useState<Transfer[] | null>(null)
   const [sending, setSending] = useState(false)
@@ -29,12 +31,12 @@ export default function Stock() {
 
   const load = useCallback(async () => {
     const [s, { data: t }] = await Promise.all([
-      loadStock(),
+      warehouse ? Promise.resolve([] as StockRow[]) : loadStock(),
       supabase.from('transfers').select(TRANSFER_SELECT).order('sent_at', { ascending: false }).limit(200),
     ])
     setRows(s)
     setTransfers((t ?? []) as unknown as Transfer[])
-  }, [])
+  }, [warehouse])
   useEffect(() => { load() }, [load])
 
   const waiting = (transfers ?? []).filter((t) => t.status === 'sent')
@@ -51,19 +53,19 @@ export default function Stock() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-bold text-ae-blue">Stock</h2>
+        <h2 className="text-xl font-bold text-ae-blue">{warehouse ? 'Stock transfers' : 'Stock'}</h2>
         {factory && tab === 'gala17' && !sending && at('gala17').length > 0 && (
           <Button onClick={() => { setSending(true); setMsg('') }}>Send to Gala 6</Button>
         )}
       </div>
-      <div className="flex rounded-lg border border-stone-300 bg-white p-1 text-sm font-semibold">
+      {!warehouse && <div className="flex rounded-lg border border-stone-300 bg-white p-1 text-sm font-semibold">
         {tabs.map((t) => (
           <button key={t.k} type="button" onClick={() => { setParams({ tab: t.k }); setSending(false) }}
             className={`flex-1 rounded-md px-2 py-2 ${tab === t.k ? 'bg-ae-blue text-ae-cream' : 'text-stone-600'}`}>
             {t.label}{t.n ? <span className="ml-1 opacity-80">{t.k === 'transfers' ? `(${t.n})` : fmtN(t.n)}</span> : null}
           </button>
         ))}
-      </div>
+      </div>}
       <OkBox>{msg}</OkBox>
       {rows === null && <p className="text-sm text-stone-500">Loading…</p>}
 
@@ -71,7 +73,7 @@ export default function Stock() {
         ? <SendForm rows={at('gala17')} onCancel={() => setSending(false)} onSent={(id) => { setSending(false); countsChanged(); load(); window.location.hash = `#/transfer/${id}` }} />
         : <StockList rows={at(tab)} place={tab} admin={admin} onChanged={(m) => { setMsg(m); load() }} />)}
 
-      {tab === 'transfers' && transfers && <TransferList transfers={transfers} />}
+      {tab === 'transfers' && transfers && <TransferList transfers={transfers} warehouse={warehouse} />}
     </div>
   )
 }
@@ -230,7 +232,7 @@ function SendForm({ rows, onCancel, onSent }: { rows: StockRow[]; onCancel: () =
   )
 }
 
-function TransferList({ transfers }: { transfers: Transfer[] }) {
+function TransferList({ transfers, warehouse }: { transfers: Transfer[]; warehouse: boolean }) {
   const nav = useNavigate()
   if (!transfers.length) return <Card><p className="text-sm text-stone-600">No transfers yet.</p></Card>
   const open = transfers.filter((t) => t.status === 'sent' || (t.has_difference && !t.signed_off_at))
@@ -264,7 +266,7 @@ function TransferList({ transfers }: { transfers: Transfer[] }) {
           <Card className="p-0 sm:p-0"><ul className="divide-y divide-stone-100">{done.map(row)}</ul></Card>
         </>
       )}
-      <p className="text-center text-xs text-stone-500"><Link to="/stock?tab=gala6" className="underline">See stock at Gala 6</Link></p>
+      {!warehouse && <p className="text-center text-xs text-stone-500"><Link to="/stock?tab=gala6" className="underline">See stock at Gala 6</Link></p>}
     </div>
   )
 }
