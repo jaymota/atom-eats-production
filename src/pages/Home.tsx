@@ -1,6 +1,7 @@
 // Today. Admins can plan today right here. Every open batch due today or earlier is listed:
-// "To make" (in-house, with a Complete button) and "Awaiting stock" (contract manufacturers,
-// with Stock received). In-house batches past their day get a red Late box; contract ones just wait.
+// "To make" (in-house → Making done), "To fill" (made or received in bulk → Filling done) and
+// "Awaiting stock" (contract → Stock received). Made batches carry over until filled.
+// In-house batches past their day get a red Late box; contract ones just wait.
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BatchCard } from '../components/BatchCard'
@@ -50,8 +51,9 @@ export default function Home() {
     { to: '/plan?view=day&day=' + addDays(today, 1), label: 'Tomorrow', n: tomorrow ?? '…' },
   ]
 
-  const toMake = list.filter((b) => !b.manufacturer_id)
-  const awaiting = list.filter((b) => !!b.manufacturer_id)
+  const toMake = list.filter((b) => !b.manufacturer_id && b.stage !== 'made')
+  const toFill = list.filter((b) => b.stage === 'made')
+  const awaiting = list.filter((b) => !!b.manufacturer_id && b.stage !== 'made')
 
   return (
     <div className="space-y-4">
@@ -92,7 +94,7 @@ export default function Home() {
       {open === null && <p className="text-sm text-stone-500">Loading…</p>}
       {open && !list.length && !planning && <Card><p className="text-stone-600">Nothing to do today.</p></Card>}
 
-      {[{ label: 'To make', here: toMake }, { label: 'Awaiting stock', here: awaiting }].map(({ label, here }) => here.length > 0 && (
+      {[{ label: 'To make', here: toMake }, { label: 'To fill', here: toFill }, { label: 'Awaiting stock', here: awaiting }].map(({ label, here }) => here.length > 0 && (
         <div key={label} className="space-y-2">
           <h3 className="text-sm font-semibold text-stone-500">{label} · {here.length}</h3>
           <Card className="p-0 sm:p-0">

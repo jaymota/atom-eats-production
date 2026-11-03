@@ -9,6 +9,7 @@ type L = { to: string; label: string; end?: boolean; count?: keyof Counts }
 const LINKS: L[] = [
   { to: '/', label: 'Today', end: true, count: 'today' },
   { to: '/plan', label: 'Plan' },
+  { to: '/bulk', label: 'Bulk stock' },
   { to: '/reports', label: 'Reports' },
   { to: '/products', label: 'Products', count: 'check' },
   { to: '/team', label: 'Team' },

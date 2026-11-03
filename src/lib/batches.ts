@@ -2,11 +2,12 @@
 // batches migration), which check the person's role and write the activity log.
 import { supabase } from './supabase'
 
-export type Stage = 'planned' | 'manufacturing' | 'filling' | 'qc' | 'done' | 'moved' | 'cancelled'
+export type Stage = 'planned' | 'made' | 'manufacturing' | 'filling' | 'qc' | 'done' | 'moved' | 'cancelled'
 export type PackType = 'pouch' | 'jar' | 'bulk' | 'party_pack'
 
 export const STAGE_NAMES: Record<Stage, string> = {
   planned: 'Planned',
+  made: 'To fill',
   manufacturing: 'Planned',
   filling: 'Planned',
   qc: 'Planned',
@@ -16,13 +17,14 @@ export const STAGE_NAMES: Record<Stage, string> = {
 }
 
 /** Open (not done, not cancelled). Only "planned" is used now; the others are old stages. */
-export const FLOOR_STAGES: Stage[] = ['planned', 'manufacturing', 'filling', 'qc', 'done']
+export const FLOOR_STAGES: Stage[] = ['planned', 'made', 'manufacturing', 'filling', 'qc', 'done']
 export const OPEN_STAGES: Stage[] = FLOOR_STAGES
 
 export const PACK_NAMES: Record<PackType, string> = { pouch: 'Pouch', jar: 'Jar', bulk: 'Bulk', party_pack: 'Party pack' }
 
 export const STAGE_TONE: Record<Stage, string> = {
   planned: 'bg-stone-100 text-stone-700',
+  made: 'bg-sky-100 text-sky-800',
   manufacturing: 'bg-stone-100 text-stone-700',
   filling: 'bg-stone-100 text-stone-700',
   qc: 'bg-stone-100 text-stone-700',
@@ -31,8 +33,13 @@ export const STAGE_TONE: Record<Stage, string> = {
   cancelled: 'bg-red-100 text-red-800',
 }
 
-/** "Complete" for in-house batches, "Stock received" for contract manufacturers. */
-export const completeLabel = (b: Pick<Batch, 'manufacturer_id'>) => (b.manufacturer_id ? 'Stock received' : 'Complete')
+/** The next step's button: Making done / Stock received (Planned) or Filling done (made, waiting to fill). */
+export function nextStep(b: Pick<Batch, 'stage' | 'manufacturer_id'>): { label: string; mode: 'make' | 'receive' | 'fill' } | null {
+  if (b.stage === 'made') return { label: 'Filling done', mode: 'fill' }
+  if (!OPEN_STAGES.includes(b.stage)) return null
+  return b.manufacturer_id ? { label: 'Stock received', mode: 'receive' } : { label: 'Making done', mode: 'make' }
+}
+export const completeLabel = (b: Pick<Batch, 'stage' | 'manufacturer_id'>) => nextStep(b)?.label ?? 'Done'
 
 export interface Output {
   id: string
@@ -44,6 +51,8 @@ export interface Output {
   packed_by: string | null
   note: string | null
   created_at: string
+  grammage_g: number | null
+  pack_type: PackType | null
 }
 
 export interface Batch {
@@ -63,11 +72,18 @@ export interface Batch {
   closed_at: string | null
   manufacturer_id: string | null
   maker: { name: string } | null
+  made_kg: number | null
+  made_on: string | null
+  made_workers: string[]
+  from_lot: string | null
+  kept_in_bulk: boolean
+  /** Bulk lots this batch put kg into (kept in bulk / put aside at filling). */
+  lots?: { moves: { kg: number; kind: string }[] }[]
   product: { name: string; sku: string; category: string | null }
   outputs: Output[]
 }
 
-export const BATCH_SELECT = '*, product:products(name, sku, category), maker:manufacturers(name), outputs:batch_outputs(*)'
+export const BATCH_SELECT = '*, product:products(name, sku, category), maker:manufacturers(name), outputs:batch_outputs(*), lots:bulk_lots!bulk_lots_batch_id_fkey(moves:bulk_moves(kg, kind))'
 
 // ---------- Dates (India time) ----------
 
@@ -103,6 +119,16 @@ export const kgDone = (b: Pick<Batch, 'outputs'>) => b.outputs.reduce((s, o) => 
 export const expectedKg = (b: Pick<Batch, 'units_planned' | 'grammage_g'>) =>
   b.units_planned && b.grammage_g ? (b.units_planned * b.grammage_g) / 1000 : null
 
+/** kg this batch put into bulk stock. */
+export const bulkKg = (b: Pick<Batch, 'lots'>) =>
+  (b.lots ?? []).reduce((s, l) => s + l.moves.filter((m) => m.kind === 'in').reduce((t, m) => t + Number(m.kg), 0), 0)
+
+/** kg left over after filling: made − filled − put in bulk stock (null until made). */
+export function leftKg(b: Pick<Batch, 'made_kg' | 'outputs' | 'lots'>, extraKg = 0): number | null {
+  if (b.made_kg == null) return null
+  return Math.round((Number(b.made_kg) - kgDone(b) - bulkKg(b) - extraKg) * 1000) / 1000
+}
+
 /** Loss % from what went in and what came out, when input was recorded. */
 export function lossPct(outputs: Pick<Output, 'output_kg' | 'input_kg'>[]): number | null {
   const withInput = outputs.filter((o) => o.input_kg != null && Number(o.input_kg) > 0)
@@ -115,8 +141,9 @@ export function lossPct(outputs: Pick<Output, 'output_kg' | 'input_kg'>[]): numb
 export const fmtKg = (n: number | null | undefined) => (n == null ? '—' : `${Math.round(n * 100) / 100} kg`)
 export const fmtN = (n: number) => n.toLocaleString('en-IN')
 
+// A made / received-in-bulk batch waiting to fill is "To fill", not late.
 const overdue = (b: Pick<Batch, 'stage' | 'planned_date'>, today: string) =>
-  OPEN_STAGES.includes(b.stage) && !!b.planned_date && b.planned_date < today
+  OPEN_STAGES.includes(b.stage) && b.stage !== 'made' && !!b.planned_date && b.planned_date < today
 
 /** An in-house batch whose day has passed and isn't done. */
 export const isLate = (b: Pick<Batch, 'stage' | 'planned_date' | 'manufacturer_id'>, today = todayIST()) =>

@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './lib/auth'
 import { homeFor, mayOpen } from './lib/access'
 import Activity from './pages/Activity'
 import BatchPage from './pages/BatchPage'
+import BulkStock from './pages/BulkStock'
 import ChoosePin from './pages/ChoosePin'
 import Home from './pages/Home'
 import Layout from './pages/Layout'
@@ -36,6 +37,7 @@ function Gate() {
           <Route index element={<Only path="/"><Home /></Only>} />
           <Route path="plan" element={<Only path="/plan"><Plan /></Only>} />
           <Route path="batch/:id" element={<Only path="/batch/:id"><BatchPage /></Only>} />
+          <Route path="bulk" element={<Only path="/bulk"><BulkStock /></Only>} />
           <Route path="reports" element={<Only path="/reports"><Reports /></Only>} />
           <Route path="products" element={<Only path="/products"><Products /></Only>} />
           <Route path="team" element={<Only path="/team"><Team /></Only>} />

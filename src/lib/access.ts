@@ -5,6 +5,7 @@ export const PAGE_ROLES: Record<string, string[]> = {
   '/': ALL,
   '/plan': ALL,
   '/batch/:id': ALL,
+  '/bulk': ALL,
   '/reports': ALL,
   '/products': ALL,
   '/team': ALL,
