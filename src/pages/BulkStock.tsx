@@ -7,7 +7,7 @@ import { Button, Card, ErrorBox, Field, Input, OkBox, Select } from '../componen
 import { useAuth } from '../lib/auth'
 import { addDays, dayLabel, fmtKg, todayIST, why } from '../lib/batches'
 import { countsChanged } from '../lib/counts'
-import { isAdmin } from '../lib/format'
+import { canPlan } from '../lib/format'
 import { CATEGORIES, sizeText } from '../lib/products'
 import { supabase } from '../lib/supabase'
 
@@ -29,7 +29,7 @@ const ageDays = (iso: string) => Math.round((Date.parse(`${todayIST()}T00:00:00Z
 
 export default function BulkStock() {
   const { me } = useAuth()
-  const admin = isAdmin(me?.role)
+  const admin = canPlan(me?.role)
   const nav = useNavigate()
   const [lots, setLots] = useState<Lot[] | null>(null)
   const [q, setQ] = useState('')

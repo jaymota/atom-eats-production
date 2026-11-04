@@ -7,7 +7,7 @@ import QuickPlan from '../components/QuickPlan'
 import { Button, Card, ErrorBox, OkBox } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import { addDays, dayLabel, fmtN, loadBatches, mondayOf, todayIST, why, type Batch } from '../lib/batches'
-import { isAdmin } from '../lib/format'
+import { canPlan } from '../lib/format'
 import { supabase } from '../lib/supabase'
 import { useWorkers } from '../lib/workers'
 
@@ -48,7 +48,7 @@ export default function Plan() {
 /** One day's batches, with "+ Plan" for admins. */
 export function DayPlan({ day, setDay, plan = false, floor = false }: { day: string; setDay?: (d: string) => void; plan?: boolean; floor?: boolean }) {
   const { me } = useAuth()
-  const admin = isAdmin(me?.role)
+  const admin = canPlan(me?.role)
   const { names } = useWorkers()
   const [rows, setRows] = useState<Batch[] | null>(null)
   const [planning, setPlanning] = useState(plan)
@@ -104,7 +104,7 @@ export function DayPlan({ day, setDay, plan = false, floor = false }: { day: str
 
 function WeekPlan({ monday, setWeek, openDay }: { monday: string; setWeek: (w: string) => void; openDay: (d: string) => void }) {
   const { me } = useAuth()
-  const admin = isAdmin(me?.role)
+  const admin = canPlan(me?.role)
   const { names } = useWorkers()
   const [rows, setRows] = useState<Batch[] | null>(null)
   const [msg, setMsg] = useState('')

@@ -11,14 +11,14 @@ import { useAuth } from '../lib/auth'
 import {
   FLOOR_STAGES, addDays, dayLabel, fmtN, isLate, loadBatches, todayIST, type Batch,
 } from '../lib/batches'
-import { isAdmin } from '../lib/format'
+import { canPlan } from '../lib/format'
 import { countsChanged } from '../lib/counts'
 import { supabase } from '../lib/supabase'
 import { useWorkers } from '../lib/workers'
 
 export default function Home() {
   const { me } = useAuth()
-  const admin = isAdmin(me?.role)
+  const admin = canPlan(me?.role)
   const { names } = useWorkers()
   const [open, setOpen] = useState<Batch[] | null>(null)
   const [packedToday, setPackedToday] = useState(0)

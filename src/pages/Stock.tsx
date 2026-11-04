@@ -7,7 +7,7 @@ import { Button, Card, ErrorBox, Field, Input, OkBox } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import { dayLabel, fmtN, todayIST, why } from '../lib/batches'
 import { countsChanged } from '../lib/counts'
-import { istDateTime, isAdmin } from '../lib/format'
+import { istDateTime, canPlan } from '../lib/format'
 import { CATEGORIES, sizeText } from '../lib/products'
 import {
   PLACE_NAMES, TRANSFER_SELECT, daysBetween, expiryInfo, loadStock, rowKey, transferStatus, type Place, type StockRow, type Transfer,
@@ -18,7 +18,7 @@ type Tab = Place | 'transfers'
 
 export default function Stock() {
   const { me } = useAuth()
-  const admin = isAdmin(me?.role)
+  const admin = canPlan(me?.role)
   const factory = me?.role === 'floor' || admin
   const [params, setParams] = useSearchParams()
   // Warehouse logins only see transfers.

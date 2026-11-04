@@ -12,7 +12,7 @@ import {
   leftKg, lossPct, nextStep, todayIST, unitsDone, why, type Batch, type PackType, type Stage,
 } from '../lib/batches'
 import { countsChanged } from '../lib/counts'
-import { istDateTime, isAdmin } from '../lib/format'
+import { istDateTime, canPlan } from '../lib/format'
 import { addMakerPrompt, useMakers, type Maker } from '../lib/makers'
 import { sizeText } from '../lib/products'
 import { supabase } from '../lib/supabase'
@@ -26,7 +26,7 @@ const round3 = (n: number) => Math.round(n * 1000) / 1000
 export default function BatchPage() {
   const { id } = useParams()
   const { me } = useAuth()
-  const admin = isAdmin(me?.role)
+  const admin = canPlan(me?.role)
   const { list: workers, names } = useWorkers()
   const makers = useMakers()
   const [b, setB] = useState<Batch | null | undefined>(undefined)

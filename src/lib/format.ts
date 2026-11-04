@@ -17,6 +17,8 @@ export const ROLE_HELP: Record<Role, string> = {
 /** Planning, stock changes and the team. */
 export const isAdmin = (r: Role | undefined) => r === 'super_admin' || r === 'admin'
 export const isFullAdmin = isAdmin
+/** Planning and stock movements: admins and the floor team (Jeet). Not warehouse. */
+export const canPlan = (r: Role | undefined) => r === 'super_admin' || r === 'admin' || r === 'floor'
 
 /** "24 Oct 2026, 6:42 pm" in India time. */
 export function istDateTime(iso: string | null | undefined): string {
