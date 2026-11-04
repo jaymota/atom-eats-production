@@ -74,8 +74,9 @@ export function BatchCard({ b, workerNames, showDate, floor }: {
           {done > 0 && <> · <b className="text-stone-700">{fmtN(done)} units · {fmtKg(kgDone(b))} {b.stage === 'moved' || b.stage === 'made' ? 'filled' : b.manufacturer_id ? 'received' : 'made'}</b></>}
           {b.workers.length > 0 && <> · {b.workers.map((w) => workerNames[w] ?? '?').join(', ')}</>}
         </div>
-        {open && floor && <PackLabel compact l={labelFor(b)} />}
+        {open && floor && <div className="sm:hidden"><PackLabel compact l={labelFor(b)} /></div>}
       </Link>
+      {open && floor && <Link to={`/batch/${b.id}`} className="hidden shrink-0 sm:block"><PackLabel small l={labelFor(b)} /></Link>}
       {floor && step && (
         <Link to={`/batch/${b.id}?do=${step.mode}`}
           className="min-h-12 rounded-lg bg-ae-blue px-5 py-3 text-center text-base font-semibold text-ae-cream sm:text-sm">
