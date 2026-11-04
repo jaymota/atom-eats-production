@@ -38,6 +38,12 @@ export default function Stock() {
     setTransfers((t ?? []) as unknown as Transfer[])
   }, [warehouse])
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const again = () => { if (document.visibilityState === 'visible') load() }
+    window.addEventListener('focus', again)
+    document.addEventListener('visibilitychange', again)
+    return () => { window.removeEventListener('focus', again); document.removeEventListener('visibilitychange', again) }
+  }, [load])
 
   const waiting = (transfers ?? []).filter((t) => t.status === 'sent')
   const toSign = (transfers ?? []).filter((t) => t.has_difference && !t.signed_off_at)
@@ -54,8 +60,11 @@ export default function Stock() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-bold text-ae-blue">{warehouse ? 'Stock transfers' : 'Stock'}</h2>
-        {factory && tab === 'gala17' && !sending && at('gala17').length > 0 && (
-          <Button onClick={() => { setSending(true); setMsg('') }}>Send to Gala 6</Button>
+        {factory && tab === 'gala17' && !sending && (
+          <Button onClick={() => {
+            setMsg(at('gala17').length ? '' : 'Nothing at Gala 17 to send yet. Stock appears here after Filling done or Stock received.')
+            if (at('gala17').length) setSending(true)
+          }}>Send to Gala 6</Button>
         )}
       </div>
       {!warehouse && <div className="flex rounded-lg border border-stone-300 bg-white p-1 text-sm font-semibold">
@@ -194,7 +203,11 @@ function SendForm({ rows, onCancel, onSent }: { rows: StockRow[]; onCancel: () =
 
   return (
     <div className="space-y-3 pb-32">
-      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search product or batch no." />
+      <div className="flex gap-2">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search product or batch no." />
+        <Button tone="plain" className="shrink-0 px-3 text-sm" onClick={() => setQty({ ...qty, ...Object.fromEntries(shown.map((r) => [rowKey(r), String(r.units)])) })}>Select all</Button>
+        {picked.length > 0 && <Button tone="plain" className="shrink-0 px-3 text-sm" onClick={() => setQty({})}>Clear</Button>}
+      </div>
       <Card className="p-0 sm:p-0">
         <ul className="divide-y divide-stone-100">
           {shown.map((r) => {
