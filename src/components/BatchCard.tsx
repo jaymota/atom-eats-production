@@ -4,7 +4,10 @@ import { Link } from 'react-router-dom'
 import {
   PACK_NAMES, STAGE_NAMES, STAGE_TONE, dayLabel, expectedKg, fmtKg, fmtN, isAwaiting, isLate, kgDone, nextStep, unitsDone, type Batch,
 } from '../lib/batches'
+import { packLabel } from '../lib/label'
 import { sizeText } from '../lib/products'
+import { PackLabel } from './PackLabel'
+import { todayIST } from '../lib/batches'
 
 export function StageBadge({ stage }: { stage: Batch['stage'] }) {
   return <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${STAGE_TONE[stage]}`}>{STAGE_NAMES[stage]}</span>
@@ -23,6 +26,13 @@ export function Amount({ b, big = true }: { b: Batch; big?: boolean }) {
       </div>
     </div>
   )
+}
+
+/** The label for this batch if it's packed today (or on its planned day, if that's later). */
+export function labelFor(b: Batch, mfg?: string, grams?: number | null) {
+  const day = mfg ?? (b.planned_date && b.planned_date > todayIST() ? b.planned_date : todayIST())
+  return packLabel({ mrp: b.product.mrp ?? null, grammage_g: b.product.grammage_g ?? null, shelf_life_months: b.product.shelf_life_months },
+    grams ?? b.grammage_g, b.batch_no, day)
 }
 
 export function MadeAt({ b }: { b: Pick<Batch, 'maker'> }) {
@@ -64,6 +74,7 @@ export function BatchCard({ b, workerNames, showDate, floor }: {
           {done > 0 && <> · <b className="text-stone-700">{fmtN(done)} units · {fmtKg(kgDone(b))} {b.stage === 'moved' || b.stage === 'made' ? 'filled' : b.manufacturer_id ? 'received' : 'made'}</b></>}
           {b.workers.length > 0 && <> · {b.workers.map((w) => workerNames[w] ?? '?').join(', ')}</>}
         </div>
+        {open && floor && <PackLabel compact l={labelFor(b)} />}
       </Link>
       {floor && step && (
         <Link to={`/batch/${b.id}?do=${step.mode}`}

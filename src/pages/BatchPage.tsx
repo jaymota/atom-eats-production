@@ -4,7 +4,8 @@
 // A made batch can be kept in bulk instead. Admins can also change, cancel or reopen it.
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { Amount, MadeAt, StageBadge } from '../components/BatchCard'
+import { Amount, MadeAt, StageBadge, labelFor } from '../components/BatchCard'
+import { PackLabel } from '../components/PackLabel'
 import { Button, Card, ErrorBox, Field, Input, Select } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import {
@@ -94,6 +95,7 @@ export default function BatchPage() {
           {b.made_workers.length > 0 && <Item k="Made by" v={b.made_workers.map((w) => names[w] ?? '?').join(', ')} />}
           {b.workers.length > 0 && <Item k="Filled by" v={b.workers.map((w) => names[w] ?? '?').join(', ')} />}
         </dl>
+        {open && !mode && <PackLabel l={labelFor(b)} />}
         {b.notes && <p className="text-sm text-stone-600">{b.notes}</p>}
         {b.cancel_reason && <p className="text-sm font-semibold text-red-700">Cancelled: {b.cancel_reason}</p>}
       </Card>
@@ -309,31 +311,23 @@ function Receive({ b, busy, onPacked, onBulk, onCancel }: {
   )
 }
 
-/** Made date + shelf life → expiry. */
-function expiryOf(made: string, months: number | null | undefined): string | null {
-  if (!months) return null
-  const d = new Date(`${made}T00:00:00Z`)
-  d.setUTCMonth(d.getUTCMonth() + months)
-  return d.toISOString().slice(0, 10)
-}
-
-/** Shows batch no. · mfg · expiry, and asks for the shelf life if the product has none yet. */
-function LabelInfo({ b, date, shelf, setShelf }: { b: Batch; date: string; shelf: string; setShelf: (v: string) => void }) {
+/** What to print on the pack (one label per pack size), and the shelf life box if it's missing. */
+function LabelInfo({ b, date, shelf, setShelf, sizes }: { b: Batch; date: string; shelf: string; setShelf: (v: string) => void; sizes?: number[] }) {
   const known = b.product.shelf_life_months
-  const months = known ?? (Number(shelf) || null)
-  const exp = expiryOf(date, months)
+  const withShelf: Batch = { ...b, product: { ...b.product, shelf_life_months: known ?? (Number(shelf) || null) } }
+  const list = [...new Set((sizes?.length ? sizes : [b.grammage_g ?? 0]).filter((g) => g > 0))]
   return (
-    <div className={`rounded-lg p-3 text-sm ${known ? 'bg-ae-cream/50' : 'border border-amber-300 bg-amber-50'}`}>
-      <div className="font-semibold text-stone-800">
-        Batch <span className="font-mono">{b.batch_no ?? '—'}</span> · Mfg {dayLabel(date, { weekday: false, year: true })} · Exp {exp ? dayLabel(exp, { weekday: false, year: true }) : '—'}
-      </div>
+    <div className="space-y-2">
       {!known && (
-        <div className="mt-2 flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
           <span className="font-semibold text-amber-900">Shelf life not set. Months:</span>
           <input inputMode="numeric" value={shelf} onChange={(e) => setShelf(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 6"
             className="h-10 w-20 rounded-lg border border-amber-400 bg-white text-center font-bold" aria-label="Shelf life in months" />
         </div>
       )}
+      <div className="flex flex-wrap gap-2">
+        {list.map((g) => <PackLabel key={g} l={labelFor(withShelf, date, g)} />)}
+      </div>
     </div>
   )
 }
@@ -385,7 +379,7 @@ function Fill({ b, workers, busy, onSave, onCancel }: { b: Batch; workers: Worke
   return (
     <Card>
       <form onSubmit={submit} className="space-y-4">
-        <LabelInfo b={b} date={date} shelf={shelf} setShelf={setShelf} />
+        <LabelInfo b={b} date={date} shelf={shelf} setShelf={setShelf} sizes={lines.map((l) => Number(l.grams))} />
         <ErrorBox>{err}</ErrorBox>
         {fromKg != null && <p className="text-sm font-semibold text-sky-800">{fmtKg(fromKg)} to fill</p>}
         <div className="space-y-2">

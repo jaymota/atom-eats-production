@@ -1,6 +1,7 @@
 // Finished stock at Gala 17 (factory) and Gala 6 (warehouse), by batch, and the transfers
 // between them. All changes go through database functions (send / receive / sign off / take out).
 import { addDays, todayIST } from './batches'
+import { expiryDate } from './label'
 import { supabase } from './supabase'
 
 export type Place = 'gala17' | 'gala6'
@@ -75,13 +76,7 @@ export const TRANSFER_SELECT =
   'lines:transfer_lines(*, product:products(name, shelf_life_months))'
 
 /** Expiry of a transfer line (made date + shelf life). */
-export function lineExpiry(l: Pick<TransferLine, 'made_on' | 'product'>): string | null {
-  const m = l.product.shelf_life_months
-  if (!m) return null
-  const d = new Date(`${l.made_on}T00:00:00Z`)
-  d.setUTCMonth(d.getUTCMonth() + m)
-  return d.toISOString().slice(0, 10)
-}
+export const lineExpiry = (l: Pick<TransferLine, 'made_on' | 'product'>) => expiryDate(l.made_on, l.product.shelf_life_months)
 
 export const transferStatus = (t: Pick<Transfer, 'status' | 'has_difference' | 'signed_off_at'>) =>
   t.status === 'sent'

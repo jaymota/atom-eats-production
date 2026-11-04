@@ -79,11 +79,11 @@ export interface Batch {
   kept_in_bulk: boolean
   /** Bulk lots this batch put kg into (kept in bulk / put aside at filling). */
   lots?: { moves: { kg: number; kind: string }[] }[]
-  product: { name: string; sku: string; category: string | null; shelf_life_months?: number | null }
+  product: { name: string; sku: string; category: string | null; shelf_life_months?: number | null; mrp?: number | null; grammage_g?: number | null }
   outputs: Output[]
 }
 
-export const BATCH_SELECT = '*, product:products(name, sku, category, shelf_life_months), maker:manufacturers(name), outputs:batch_outputs(*), lots:bulk_lots!bulk_lots_batch_id_fkey(moves:bulk_moves(kg, kind))'
+export const BATCH_SELECT = '*, product:products(name, sku, category, shelf_life_months, mrp, grammage_g), maker:manufacturers(name), outputs:batch_outputs(*), lots:bulk_lots!bulk_lots_batch_id_fkey(moves:bulk_moves(kg, kind))'
 
 // ---------- Dates (India time) ----------
 
