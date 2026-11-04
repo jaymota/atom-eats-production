@@ -95,7 +95,7 @@ function StockList({ rows, place, admin, onChanged }: { rows: StockRow[]; place:
   }, [rows, q])
 
   if (!rows.length) {
-    return <Card><p className="text-sm text-stone-600">Nothing at {PLACE_NAMES[place]} yet. Stock starts counting from production completed on 5 Nov 2026.</p></Card>
+    return <Card><p className="text-sm text-stone-600">Nothing at {PLACE_NAMES[place]} yet. Stock starts counting from production completed on 4 Nov 2026.</p></Card>
   }
   return (
     <div className="space-y-3">
