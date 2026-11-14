@@ -61,6 +61,7 @@ export interface Transfer {
   note: string | null
   receive_note: string | null
   sent_at: string
+  sent_by: string | null
   received_at: string | null
   has_difference: boolean
   signed_off_at: string | null

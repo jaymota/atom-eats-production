@@ -16,6 +16,7 @@ interface Person {
   active: boolean
   must_change_pin: boolean
   last_login_at: string | null
+  can_send: boolean
 }
 
 const ROLE_ORDER: Role[] = ['super_admin', 'admin', 'floor', 'warehouse']
@@ -114,7 +115,7 @@ export default function Team() {
   const assignable = ROLE_ORDER.filter((r) => mayManage(r))
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('people').select('id, name, username, role, email, phone, active, must_change_pin, last_login_at').order('name')
+    const { data } = await supabase.from('people').select('id, name, username, role, email, phone, active, must_change_pin, last_login_at, can_send').order('name')
     setPeople(((data ?? []) as Person[]).sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || a.name.localeCompare(b.name)))
     if (admin) {
       const { data: l } = await supabase.rpc('locked_people')
@@ -163,6 +164,7 @@ export default function Team() {
                 {locked[p.id] && <Badge tone="red">Locked</Badge>}
                 {!p.active && <Badge tone="red">Switched off</Badge>}
                 {p.active && p.must_change_pin && <Badge>Hasn’t chosen own PIN yet</Badge>}
+                {p.role === 'warehouse' && p.can_send && <Badge tone="green">Can send stock</Badge>}
               </div>
               <div className="mt-1 text-sm text-stone-600">
                 Login name: <span className="font-mono">{p.username}</span>
@@ -174,6 +176,14 @@ export default function Team() {
             {canManage && (
               <div className="flex flex-wrap gap-2">
                 <Button tone="plain" className="min-h-10 px-3 text-sm" onClick={() => setEditing(p.id)}>Edit</Button>
+                {p.role === 'warehouse' && p.active && (
+                  <Button tone="plain" className="min-h-10 px-3 text-sm" onClick={async () => {
+                    setError('')
+                    const { error: e } = await supabase.rpc('set_can_send', { p_person: p.id, p_on: !p.can_send })
+                    if (e) setError(e.message)
+                    await load()
+                  }}>{p.can_send ? 'Stop sending' : 'Allow sending'}</Button>
+                )}
                 {p.active && (
                   <Button tone="plain" className="min-h-10 px-3 text-sm" onClick={() => {
                     if (confirm(`Give ${p.name} a new first PIN? Their old PIN stops working and they are logged out.`)) {

@@ -19,6 +19,7 @@ interface Lot {
   note: string | null
   kg_left: number
   kg_in: number | null
+  product_id: string
   product: { name: string; category: string | null; grammage_g: number | null }
   maker: { name: string } | null
 }
@@ -39,7 +40,7 @@ export default function BulkStock() {
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('bulk_stock')
-      .select('id, batch_no, made_on, source, note, kg_left, kg_in, product:products(name, category, grammage_g), maker:manufacturers(name)')
+      .select('id, product_id, batch_no, made_on, source, note, kg_left, kg_in, product:products(name, category, grammage_g), maker:manufacturers(name)')
       .gt('kg_left', 0).order('made_on')
     setLots((data ?? []) as unknown as Lot[])
   }, [])
@@ -127,7 +128,19 @@ function LotAction({ lot, mode, onCancel, onDone, onError }: {
   const [grams, setGrams] = useState(String(lot.product.grammage_g ?? ''))
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
-  const g0 = lot.product.grammage_g ?? 0
+  // "Fill as": the same product, or another one (e.g. pouch bulk filled into the jar).
+  const [products, setProducts] = useState<{ id: string; name: string; category: string | null; grammage_g: number | null }[]>([])
+  const [asId, setAsId] = useState(lot.product_id)
+  useEffect(() => {
+    if (mode !== 'take') return
+    supabase.from('products').select('id, name, category, grammage_g').eq('live', true).order('name').then(({ data }) => setProducts(data ?? []))
+  }, [mode])
+  const as = products.find((p) => p.id === asId) ?? { id: lot.product_id, ...lot.product }
+  const firstWords = lot.product.name.toLowerCase().split(' ').slice(0, 2).join(' ')
+  const related = (p: { id: string; name: string; category: string | null }) =>
+    p.id === lot.product_id ? 0 : p.name.toLowerCase().startsWith(firstWords) ? 1 : p.category === lot.product.category ? 2 : 3
+  const choices = [...products].sort((a, b) => related(a) - related(b) || a.name.localeCompare(b.name))
+  const g0 = as.grammage_g ?? 0
   const sizes = [...new Set([g0, 500, 1000].filter((x) => x > 0))]
   const units = Number(kg) > 0 && Number(grams) > 0 ? Math.round((Number(kg) * 1000) / Number(grams)) : null
 
@@ -136,7 +149,7 @@ function LotAction({ lot, mode, onCancel, onDone, onError }: {
     setBusy(true)
     onError('')
     if (mode === 'take') {
-      const { data, error } = await supabase.rpc('take_for_filling', { p_lot: lot.id, p_kg: Number(kg), p_date: day, p_grams: Number(grams) || null })
+      const { data, error } = await supabase.rpc('take_for_filling', { p_lot: lot.id, p_kg: Number(kg), p_date: day, p_grams: Number(grams) || null, p_product: asId })
       setBusy(false)
       if (error) return onError(why(error))
       onDone('', data as string)
@@ -155,6 +168,18 @@ function LotAction({ lot, mode, onCancel, onDone, onError }: {
       </Field>
       {mode === 'take' ? (
         <>
+          <div className="sm:col-span-3">
+            <Field label="Fill as" hint={asId !== lot.product_id ? `Keeps batch no. ${lot.batch_no ?? '—'} from ${lot.product.name}` : undefined}>
+              <Select value={asId} onChange={(e) => {
+                setAsId(e.target.value)
+                const p = products.find((x) => x.id === e.target.value)
+                setGrams(String(p?.grammage_g ?? ''))
+              }}>
+                {choices.map((p) => <option key={p.id} value={p.id}>{p.name}{p.grammage_g ? ` · ${sizeText(Number(p.grammage_g))}` : ''}</option>)}
+                {!choices.length && <option value={lot.product_id}>{lot.product.name}</option>}
+              </Select>
+            </Field>
+          </div>
           <Field label="Fill on">
             <Select value={day} onChange={(e) => setDay(e.target.value)}>
               <option value={todayIST()}>Today</option>

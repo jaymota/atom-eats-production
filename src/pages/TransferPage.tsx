@@ -54,7 +54,9 @@ export default function TransferPage() {
   if (t === null) return <p className="text-sm text-stone-500">Transfer not found.</p>
 
   const s = transferStatus(t)
-  const canReceive = t.status === 'sent' && ['super_admin', 'admin', 'warehouse'].includes(me?.role ?? '')
+  const admin = ['super_admin', 'admin'].includes(me?.role ?? '')
+  const ownTransfer = t.sent_by === me?.id && !admin
+  const canReceive = t.status === 'sent' && ['super_admin', 'admin', 'warehouse'].includes(me?.role ?? '') && !ownTransfer
   const sent = t.lines.reduce((a, l) => a + l.units_sent, 0)
   const got = t.lines.reduce((a, l) => a + (l.units_received ?? 0), 0)
 
@@ -124,6 +126,7 @@ export default function TransferPage() {
 
       <ErrorBox>{error}</ErrorBox>
       <div className="print:hidden">
+        {t.status === 'sent' && ownTransfer && <p className="text-sm font-semibold text-amber-800">You sent this, so someone else at Gala 6 has to receive it.</p>}
         {canReceive && !receiving && <Button className="min-h-14 w-full text-lg" onClick={() => setReceiving(true)}>Receive at Gala 6</Button>}
         {receiving && <Receive t={t} onCancel={() => setReceiving(false)} onDone={async () => { setReceiving(false); countsChanged(); await load() }} onError={setError} />}
         {t.has_difference && !t.signed_off_at && signOff && <SignOff t={t} onDone={async () => { countsChanged(); await load() }} onError={setError} />}

@@ -19,10 +19,10 @@ type Tab = Place | 'transfers'
 export default function Stock() {
   const { me } = useAuth()
   const admin = canPlan(me?.role)
-  const factory = me?.role === 'floor' || admin
+  const factory = me?.role === 'floor' || admin || !!me?.can_send
   const [params, setParams] = useSearchParams()
-  // Warehouse logins only see transfers.
-  const warehouse = me?.role === 'warehouse'
+  // Warehouse logins only see transfers, unless they're allowed to send stock (e.g. Dashrath).
+  const warehouse = me?.role === 'warehouse' && !me?.can_send
   const tab: Tab = warehouse ? 'transfers' : (['gala17', 'gala6', 'transfers'] as const).find((t) => t === params.get('tab')) ?? 'gala17'
   const [rows, setRows] = useState<StockRow[] | null>(null)
   const [transfers, setTransfers] = useState<Transfer[] | null>(null)
