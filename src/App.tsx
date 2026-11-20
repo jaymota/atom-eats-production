@@ -20,7 +20,7 @@ import Team from './pages/Team'
 /** A page the person's role may not open sends them to their own start page. */
 function Only({ path, children }: { path: string; children: ReactNode }) {
   const { me } = useAuth()
-  return mayOpen(path, me?.role) ? <>{children}</> : <Navigate to={homeFor(me?.role)} replace />
+  return mayOpen(path, me?.role, me?.can_send) ? <>{children}</> : <Navigate to={homeFor(me?.role, me?.can_send)} replace />
 }
 
 function Gate() {
@@ -47,7 +47,7 @@ function Gate() {
           <Route path="team" element={<Only path="/team"><Team /></Only>} />
           <Route path="activity" element={<Only path="/activity"><Activity /></Only>} />
           <Route path="my-pin" element={<Only path="/my-pin"><ChoosePin first={false} /></Only>} />
-          <Route path="*" element={<Navigate to={homeFor(me.role)} replace />} />
+          <Route path="*" element={<Navigate to={homeFor(me.role, me.can_send)} replace />} />
         </Route>
       </Routes>
     </HashRouter>

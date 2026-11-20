@@ -18,7 +18,11 @@ export const PAGE_ROLES: Record<string, string[]> = {
   '/my-pin': ALL,
 }
 
-export const mayOpen = (path: string, role?: string) => (PAGE_ROLES[path] ?? TEAM).includes(role ?? '')
+// A warehouse login allowed to send stock (Dashrath) also sees today's production, read-only.
+const SENDER_PAGES = ['/', '/batch/:id', '/stock', '/transfer/:id', '/my-pin']
+
+export const mayOpen = (path: string, role?: string, canSend?: boolean) =>
+  (PAGE_ROLES[path] ?? TEAM).includes(role ?? '') || (role === 'warehouse' && !!canSend && SENDER_PAGES.includes(path))
 
 /** Where each login lands. */
-export const homeFor = (role?: string) => (role === 'warehouse' ? '/stock?tab=transfers' : '/')
+export const homeFor = (role?: string, canSend?: boolean) => (role === 'warehouse' && !canSend ? '/stock?tab=transfers' : '/')
