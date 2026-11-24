@@ -1,0 +1,51 @@
+# Weekly backup of the production database to Google Drive (free).
+# The copy is locked with a password (BACKUP_PASSPHRASE) before it leaves GitHub, and nothing
+# is kept on GitHub itself: no artifacts, and the log only shows file sizes.
+# Restore help: HOW-IT-WORKS.md → "Backups".
+name: Weekly backup
+
+on:
+  schedule:
+    - cron: "30 21 * * 6"   # Saturday 21:30 UTC = Sunday 3:00 am IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install database tools (Postgres 17) and rclone
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common >/dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
+          sudo apt-get install -y -qq postgresql-client-17 rclone >/dev/null
+          /usr/lib/postgresql/17/bin/pg_dump --version
+
+      - name: Copy, compress and lock the database
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          NAME="atom-eats-production-$(TZ=Asia/Kolkata date +%Y-%m-%d).sql.gz.enc"
+          # Our tables, the login records, and the list of applied database changes.
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" --no-owner --no-privileges \
+            --schema=public --schema=auth --schema=supabase_migrations \
+            | gzip -9 | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:PASS -out "$NAME"
+          ls -l "$NAME" | awk '{print "Backup size:", $5, "bytes"}'
+          echo "NAME=$NAME" >> "$GITHUB_ENV"
+
+      - name: Upload to Google Drive and keep the last 13 weeks
+        env:
+          RCLONE_CONFIG_GDRIVE_TYPE: drive
+          RCLONE_CONFIG_GDRIVE_SCOPE: drive.file
+          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
+        run: |
+          set -euo pipefail
+          rclone copy "$NAME" "gdrive:Atom Eats Production Backups" --quiet
+          rclone delete "gdrive:Atom Eats Production Backups" --min-age 92d --quiet
+          rclone lsl "gdrive:Atom Eats Production Backups" | sort -k2 | tail -3
+          rm -f "$NAME"
