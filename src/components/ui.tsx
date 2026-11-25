@@ -29,10 +29,12 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
   )
 }
 
-const inputCls = 'w-full min-h-12 rounded-lg border border-stone-300 bg-white px-3 text-base text-stone-900 focus:border-ae-blue focus:outline-none focus:ring-2 focus:ring-ae-blue/20'
+const inputCls = 'min-h-12 rounded-lg border border-stone-300 bg-white px-3 text-base text-stone-900 focus:border-ae-blue focus:outline-none focus:ring-2 focus:ring-ae-blue/20'
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`${inputCls} ${props.className ?? ''}`} />
+  // A width given by the caller (w-20, w-28…) wins; otherwise full width.
+  const c = props.className ?? ''
+  return <input {...props} className={`${inputCls} ${/(^|\s)w-/.test(c) ? 'shrink-0' : 'w-full'} ${c}`} />
 }
 
 export function PinInput(props: InputHTMLAttributes<HTMLInputElement>) {

@@ -94,13 +94,16 @@ function PackEditor({ p, g, items, start, byId, onDone, onCancel }: {
   return (
     <div className="space-y-2 rounded-lg border border-ae-blue/20 bg-ae-cream/40 p-3">
       <div className="text-sm font-semibold text-ae-blue">One {sizeText(g)} pack uses:</div>
+      <p className="text-xs text-stone-500">How many go into one pack, not the stock. Stock is on the Stock tab.</p>
       {lines.map((l, n) => (
         <div key={l.item.id} className="flex items-center gap-2">
           <Input value={l.qty} onChange={(e) => setLines(lines.map((x, k) => (k === n ? { ...x, qty: e.target.value.replace(/[^\d.]/g, '') } : x)))}
             inputMode="decimal" className="w-20 text-right font-bold" />
-          <span className="flex-1 text-sm">
-            × {l.item.name}
-            {l.item.unit === 'kg' && <span className="block text-xs text-stone-500">{l.item.pouches_per_kg ? `${l.item.pouches_per_kg} pouches per kg` : 'Set pouches per kg on this item first'}</span>}
+          <span className="min-w-0 flex-1 text-sm">
+            <b>{l.item.unit === 'kg' ? (Number(l.qty) === 1 ? 'pouch' : 'pouches') : 'pcs'}</b> of {l.item.name} <span className="text-stone-500">per pack</span>
+            {l.item.unit === 'kg' && <span className="block text-xs text-stone-500">{l.item.pouches_per_kg
+              ? `Roll: ${l.item.pouches_per_kg} pouches per kg → takes off ${(Math.round(((Number(l.qty) || 0) * 10000) / Number(l.item.pouches_per_kg)) / 10).toLocaleString('en-IN')} g of roll per pack`
+              : 'Set pouches per kg on this roll first, or nothing is taken off'}</span>}
           </span>
           <button type="button" onClick={() => setLines(lines.filter((_, k) => k !== n))} className="text-sm text-red-700">✕</button>
         </div>
