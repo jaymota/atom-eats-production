@@ -6,6 +6,8 @@ import { homeFor, mayOpen } from './lib/access'
 import Activity from './pages/Activity'
 import BatchPage from './pages/BatchPage'
 import BulkStock from './pages/BulkStock'
+import MaterialItem from './pages/MaterialItem'
+import Materials from './pages/Materials'
 import Stock from './pages/Stock'
 import TransferPage from './pages/TransferPage'
 import ChoosePin from './pages/ChoosePin'
@@ -42,6 +44,8 @@ function Gate() {
           <Route path="stock" element={<Only path="/stock"><Stock /></Only>} />
           <Route path="transfer/:id" element={<Only path="/transfer/:id"><TransferPage /></Only>} />
           <Route path="bulk" element={<Only path="/bulk"><BulkStock /></Only>} />
+          <Route path="materials" element={<Only path="/materials"><Materials /></Only>} />
+          <Route path="material/:id" element={<Only path="/material/:id"><MaterialItem /></Only>} />
           <Route path="reports" element={<Only path="/reports"><Reports /></Only>} />
           <Route path="products" element={<Only path="/products"><Products /></Only>} />
           <Route path="team" element={<Only path="/team"><Team /></Only>} />

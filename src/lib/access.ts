@@ -11,6 +11,8 @@ export const PAGE_ROLES: Record<string, string[]> = {
   '/stock': ALL,
   '/transfer/:id': ALL,
   '/bulk': TEAM,
+  '/materials': TEAM,
+  '/material/:id': TEAM,
   '/reports': OFFICE,
   '/products': TEAM,
   '/team': TEAM,

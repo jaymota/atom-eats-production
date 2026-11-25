@@ -13,6 +13,8 @@ export interface Me {
   must_change_pin: boolean
   /** Allowed to send stock from Gala 17 (e.g. a warehouse login). */
   can_send?: boolean
+  /** Can see and change recipes (Materials → Recipes). */
+  recipe_access?: boolean
 }
 
 interface AuthState {
@@ -59,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMe(null)
       return
     }
-    const { data } = await supabase.from('people').select('id, name, username, role, email, must_change_pin, can_send').eq('id', s.user.id).maybeSingle()
+    const { data } = await supabase.from('people').select('id, name, username, role, email, must_change_pin, can_send, recipe_access').eq('id', s.user.id).maybeSingle()
     if (!data) {
       await signOut('Your login has ended. Please log in again.')
       return

@@ -11,6 +11,7 @@ const LINKS: L[] = [
   { to: '/plan', label: 'Plan' },
   { to: '/stock', label: 'Stock', count: 'transfers' },
   { to: '/bulk', label: 'Bulk stock' },
+  { to: '/materials', label: 'Materials', count: 'negative' },
   { to: '/reports', label: 'Reports' },
   { to: '/products', label: 'Products', count: 'check' },
   { to: '/team', label: 'Team' },
@@ -47,7 +48,7 @@ export default function Layout() {
               }
             >
               {l.to === '/stock' && me?.role === 'warehouse' && !me?.can_send ? 'Transfers' : l.label}
-              {l.count && counts && counts[l.count] > 0 && <span className="ml-1.5 rounded-full bg-ae-blue px-1.5 py-0.5 text-xs text-ae-cream">{counts[l.count]}</span>}
+              {l.count && counts && counts[l.count] > 0 && <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${l.count === 'negative' ? 'bg-red-600 text-white' : 'bg-ae-blue text-ae-cream'}`}>{counts[l.count]}</span>}
             </NavLink>
           ))}
         </nav>

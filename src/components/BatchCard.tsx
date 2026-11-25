@@ -40,10 +40,12 @@ export function MadeAt({ b }: { b: Pick<Batch, 'maker'> }) {
   return <span className="rounded-full bg-ae-lilac/30 px-2.5 py-0.5 text-xs font-semibold text-ae-blue">at {b.maker.name}</span>
 }
 
-export function BatchCard({ b, workerNames, showDate, floor }: {
+export function BatchCard({ b, workerNames, showDate, floor, short }: {
   b: Batch
   workerNames: Record<string, string>
   showDate?: boolean
+  /** Materials this batch runs short of (Materials → Short). */
+  short?: string[]
   /** Show the Complete / Stock received button. */
   floor?: boolean
 }) {
@@ -74,6 +76,9 @@ export function BatchCard({ b, workerNames, showDate, floor }: {
           {done > 0 && <> · <b className="text-stone-700">{fmtN(done)} units · {fmtKg(kgDone(b))} {b.stage === 'moved' || b.stage === 'made' ? 'filled' : b.manufacturer_id ? 'received' : 'made'}</b></>}
           {b.workers.length > 0 && <> · {b.workers.map((w) => workerNames[w] ?? '?').join(', ')}</>}
         </div>
+        {open && short && short.length > 0 && (
+          <div className="text-sm font-semibold text-red-700">⚠ Short: {short.slice(0, 3).join(', ')}{short.length > 3 ? ` +${short.length - 3}` : ''}</div>
+        )}
         {open && floor && <div className="sm:hidden"><PackLabel compact l={labelFor(b)} /></div>}
       </Link>
       {open && floor && <Link to={`/batch/${b.id}`} className="hidden shrink-0 sm:block"><PackLabel small l={labelFor(b)} /></Link>}

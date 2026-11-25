@@ -10,6 +10,7 @@ import { addDays, dayLabel, fmtN, loadBatches, mondayOf, todayIST, why, type Bat
 import { canPlan } from '../lib/format'
 import { supabase } from '../lib/supabase'
 import { useWorkers } from '../lib/workers'
+import { useShortBatches } from '../lib/materials'
 
 const batchesText = (n: number) => `${n} ${n === 1 ? 'batch' : 'batches'}`
 const plannedUnits = (list: Batch[]) => list.filter((b) => b.stage !== 'cancelled').reduce((s, b) => s + (b.units_planned ?? 0), 0)
@@ -51,6 +52,7 @@ export function DayPlan({ day, setDay, plan = false, floor = false }: { day: str
   const admin = canPlan(me?.role)
   const { names } = useWorkers()
   const [rows, setRows] = useState<Batch[] | null>(null)
+  const short = useShortBatches(day, day, rows)
   const [planning, setPlanning] = useState(plan)
   const [msg, setMsg] = useState('')
   const today = todayIST()
@@ -92,7 +94,7 @@ export function DayPlan({ day, setDay, plan = false, floor = false }: { day: str
           <ul className="divide-y divide-stone-100">
             {list.map((b) => (
               <li key={b.id} className={b.stage === 'cancelled' ? 'opacity-50' : ''}>
-                <BatchCard b={b} workerNames={names} floor={me?.role !== 'warehouse' && (floor || day <= today)} />
+                <BatchCard b={b} workerNames={names} floor={me?.role !== 'warehouse' && (floor || day <= today)} short={short[b.id]} />
               </li>
             ))}
           </ul>

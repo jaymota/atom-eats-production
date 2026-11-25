@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Amount, MadeAt, StageBadge, labelFor } from '../components/BatchCard'
+import BatchMaterials from '../components/BatchMaterials'
 import { PackLabel } from '../components/PackLabel'
 import { Button, Card, ErrorBox, Field, Input, Select } from '../components/ui'
 import { useAuth } from '../lib/auth'
@@ -152,6 +153,8 @@ export default function BatchPage() {
           </Card>
         </div>
       )}
+
+      {me?.role !== 'warehouse' && <BatchMaterials key={`${b.id}-${b.stage}-${b.outputs.length}`} batchId={b.id} makerId={b.manufacturer_id} units={done} />}
 
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-stone-500">History</h3>

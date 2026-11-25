@@ -15,6 +15,8 @@ import { canPlan } from '../lib/format'
 import { countsChanged } from '../lib/counts'
 import { supabase } from '../lib/supabase'
 import { useWorkers } from '../lib/workers'
+import { useMaterials, useShortBatches } from '../lib/materials'
+import { NegativeBox } from './Materials'
 
 export default function Home() {
   const { me } = useAuth()
@@ -26,6 +28,8 @@ export default function Home() {
   const [planning, setPlanning] = useState(false)
   const [msg, setMsg] = useState('')
   const today = todayIST()
+  const mats = useMaterials()
+  const short = useShortBatches(addDays(today, -30), addDays(today, 1), open)
 
   const load = useCallback(async () => {
     const [o, outs, tm] = await Promise.all([
@@ -58,6 +62,7 @@ export default function Home() {
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold text-ae-blue">Today · {dayLabel(today)}</h2>
+      {me.role !== 'warehouse' && mats.items && <NegativeBox items={mats.items} places={mats.places} stock={mats.stock} />}
 
       <div className="grid grid-cols-3 gap-3">
         {tiles.map((t) => (
@@ -99,7 +104,7 @@ export default function Home() {
           <h3 className="text-sm font-semibold text-stone-500">{label} · {here.length}</h3>
           <Card className="p-0 sm:p-0">
             <ul className="divide-y divide-stone-100">
-              {here.map((b) => <li key={b.id}><BatchCard b={b} workerNames={names} showDate={b.planned_date !== today} floor={me.role !== 'warehouse'} /></li>)}
+              {here.map((b) => <li key={b.id}><BatchCard b={b} workerNames={names} showDate={b.planned_date !== today} floor={me.role !== 'warehouse'} short={short[b.id]} /></li>)}
             </ul>
           </Card>
         </div>
