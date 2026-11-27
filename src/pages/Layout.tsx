@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet } from 'react-router-dom'
 import { Logo } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import { ROLE_NAMES } from '../lib/format'
@@ -53,6 +53,14 @@ export default function Layout() {
           ))}
         </nav>
       </header>
+      {counts && me?.role !== 'warehouse' && (counts.late > 0 || counts.missing > 0) && (
+        <Link to="/" className="block border-b border-red-200 bg-red-50 print:hidden">
+          <div className="mx-auto max-w-5xl px-4 py-2 text-sm font-semibold text-red-800">
+            ⚠ Pending:{counts.late > 0 && ` ${counts.late} not finished from earlier days`}{counts.late > 0 && counts.missing > 0 && ' ·'}
+            {counts.missing > 0 && ` ${counts.missing} with names missing`} <span className="underline">Open</span>
+          </div>
+        </Link>
+      )}
       <main className="mx-auto max-w-5xl px-4 py-6">
         <Outlet />
       </main>

@@ -6,7 +6,7 @@ import { BatchCard } from '../components/BatchCard'
 import QuickPlan from '../components/QuickPlan'
 import { Button, Card, ErrorBox, OkBox } from '../components/ui'
 import { useAuth } from '../lib/auth'
-import { addDays, dayLabel, fmtN, loadBatches, mondayOf, todayIST, why, type Batch } from '../lib/batches'
+import { FLOOR_STAGES, addDays, dayLabel, fmtN, loadBatches, mondayOf, todayIST, why, type Batch } from '../lib/batches'
 import { canPlan } from '../lib/format'
 import { supabase } from '../lib/supabase'
 import { useWorkers } from '../lib/workers'
@@ -52,13 +52,21 @@ export function DayPlan({ day, setDay, plan = false, floor = false }: { day: str
   const admin = canPlan(me?.role)
   const { names } = useWorkers()
   const [rows, setRows] = useState<Batch[] | null>(null)
-  const short = useShortBatches(day, day, rows)
+  const [carried, setCarried] = useState<Batch[]>([])
+  const short = useShortBatches(addDays(day, -30), day, rows)
   const [planning, setPlanning] = useState(plan)
   const [msg, setMsg] = useState('')
   const today = todayIST()
 
   const load = useCallback(async () => {
-    setRows(await loadBatches((q) => q.eq('planned_date', day).order('created_at')))
+    const isToday = day === todayIST()
+    const [r, c] = await Promise.all([
+      loadBatches((q) => q.eq('planned_date', day).order('created_at')),
+      // On today, also list unfinished batches from earlier days so nothing drops out of sight.
+      isToday ? loadBatches((q) => q.in('stage', FLOOR_STAGES).lt('planned_date', day).order('planned_date').order('created_at')) : Promise.resolve([] as Batch[]),
+    ])
+    setRows(r)
+    setCarried(c)
   }, [day])
   useEffect(() => { setRows(null); setMsg(''); load() }, [load])
   useEffect(() => { setPlanning(plan) }, [plan, day])
@@ -86,6 +94,18 @@ export function DayPlan({ day, setDay, plan = false, floor = false }: { day: str
         </Button>
       )}
       {planning && <QuickPlan day={day} onCancel={() => setPlanning(false)} onDone={(m) => { setPlanning(false); setMsg(m); load() }} />}
+
+      {carried.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-red-700">⚠ Not finished from earlier days · {carried.length}</h3>
+          <Card className="border-red-200 p-0 sm:p-0">
+            <ul className="divide-y divide-stone-100">
+              {carried.map((b) => <li key={b.id}><BatchCard b={b} workerNames={names} showDate floor={me?.role !== 'warehouse'} short={short[b.id]} /></li>)}
+            </ul>
+          </Card>
+          <h3 className="pt-1 text-sm font-semibold text-stone-500">Planned for today</h3>
+        </div>
+      )}
 
       {rows === null && <p className="text-sm text-stone-500">Loading…</p>}
       {rows && !list.length && !planning && <Card><p className="text-sm text-stone-600">Nothing planned{admin ? ' yet.' : '.'}</p></Card>}

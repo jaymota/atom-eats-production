@@ -11,7 +11,7 @@ import { Button, Card, ErrorBox, Field, Input, Select } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import {
   BATCH_SELECT, OPEN_STAGES, PACK_NAMES, STAGE_NAMES, bulkKg, dayLabel, fmtKg, fmtN, isAwaiting, isLate, kgDone,
-  leftKg, lossPct, nextStep, todayIST, unitsDone, why, type Batch, type PackType, type Stage,
+  leftKg, lossPct, missingNames, nextStep, pendingText, todayIST, unitsDone, why, type Batch, type PackType, type Stage,
 } from '../lib/batches'
 import { countsChanged } from '../lib/counts'
 import { istDateTime, canPlan } from '../lib/format'
@@ -21,7 +21,7 @@ import { supabase } from '../lib/supabase'
 import { useWorkers, type Worker } from '../lib/workers'
 
 interface Event { id: number; at: string; from_stage: Stage | null; to_stage: Stage; note: string | null; person: { name: string } | null }
-type Mode = '' | 'edit' | 'make' | 'fill' | 'receive' | 'keep' | 'cancel' | 'reopen'
+type Mode = '' | 'edit' | 'make' | 'fill' | 'receive' | 'keep' | 'cancel' | 'reopen' | 'people'
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000
 
@@ -35,7 +35,7 @@ export default function BatchPage() {
   const [events, setEvents] = useState<Event[]>([])
   const [params] = useSearchParams()
   const start = params.get('do')
-  const [mode, setMode] = useState<Mode>(start === 'make' || start === 'fill' || start === 'receive' ? start : '')
+  const [mode, setMode] = useState<Mode>(start === 'make' || start === 'fill' || start === 'receive' || start === 'people' ? start : '')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -70,6 +70,8 @@ export default function BatchPage() {
   const loss = lossPct(b.outputs)
   const third = !!b.manufacturer_id
   const left = leftKg(b)
+  const pending = pendingText(b)
+  const miss = missingNames(b)
 
   return (
     <div className="space-y-4">
@@ -84,6 +86,7 @@ export default function BatchPage() {
           {isLate(b) && <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">Late</span>}
           {isAwaiting(b) && <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs font-semibold text-stone-900">Awaiting stock</span>}
         </div>
+        {pending && b.planned_date && <p className="font-semibold text-red-700">⚠ {pending} · planned {dayLabel(b.planned_date)}</p>}
         <Amount b={b} />
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
           <Item k="Batch no." v={<span className="font-mono">{b.batch_no ?? '—'}</span>} />
@@ -102,6 +105,14 @@ export default function BatchPage() {
       </Card>
 
       <ErrorBox>{error}</ErrorBox>
+
+      {(miss.made || miss.filled) && mode !== 'people' && me?.role !== 'warehouse' && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 border-amber-300 bg-amber-50">
+          <span className="font-semibold text-amber-900">Names missing: {[miss.made && 'Made by', miss.filled && 'Filled by'].filter(Boolean).join(' · ')}</span>
+          <Button tone="plain" onClick={() => setMode('people')}>Add names</Button>
+        </Card>
+      )}
+      {mode === 'people' && <People b={b} workers={workers} miss={miss} busy={busy} onSave={(a) => run('set_batch_people', { p_id: b.id, ...a })} onCancel={() => setMode('')} />}
 
       {open && !mode && me?.role !== 'warehouse' && (
         <div className="space-y-2">
@@ -220,11 +231,12 @@ function Make({ b, workers, busy, onSave, onCancel }: { b: Batch; workers: Worke
           </Field>
           <Field label="Date"><Input type="date" value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} required /></Field>
         </div>
-        <TeamPicker workers={workers} team={team} setTeam={setTeam} label="Made by" />
+        <TeamPicker workers={workers} team={team} setTeam={setTeam} label="Made by *" />
+        {!team.length && <p className="text-sm font-semibold text-red-700">Choose who made it</p>}
         <Field label="Note"><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" className="flex-1" disabled={busy || !(Number(kg) > 0)}>{busy ? 'Saving…' : 'Making done · fill later'}</Button>
-          <Button tone="plain" disabled={busy || !(Number(kg) > 0)} onClick={() => save(true)()}>Keep in bulk</Button>
+          <Button type="submit" className="flex-1" disabled={busy || !(Number(kg) > 0) || !team.length}>{busy ? 'Saving…' : 'Making done · fill later'}</Button>
+          <Button tone="plain" disabled={busy || !(Number(kg) > 0) || !team.length} onClick={() => save(true)()}>Keep in bulk</Button>
           <Button tone="plain" onClick={onCancel}>Cancel</Button>
         </div>
       </form>
@@ -412,7 +424,7 @@ function Fill({ b, workers, busy, onSave, onCancel }: { b: Batch; workers: Worke
             <Input value={toBulk} onFocus={selectAll} onChange={(e) => setToBulk(decimal(e.target.value))} inputMode="decimal" placeholder="0" />
           </Field>
           <Field label="Date"><Input type="date" value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} required /></Field>
-          {fromKg == null && <Field label="Input (kg)" hint="Optional, for loss %"><Input value={input} onChange={(e) => setInput(decimal(e.target.value))} inputMode="decimal" /></Field>}
+          {fromKg == null && <Field label="Input (kg) *" hint="kg before filling, for loss %"><Input value={input} onChange={(e) => setInput(decimal(e.target.value))} inputMode="decimal" required /></Field>}
         </div>
         <p className="text-sm font-semibold text-stone-700">
           {fmtN(units)} units · {fmtKg(filledKg)} filled{bulkKg > 0 && ` · ${fmtKg(bulkKg)} to bulk`}
@@ -420,16 +432,36 @@ function Fill({ b, workers, busy, onSave, onCancel }: { b: Batch; workers: Worke
             ? <span className="text-red-700"> · loss {fmtKg(leftover)}{fromKg ? ` (${((leftover / fromKg) * 100).toFixed(1)}%)` : ''}</span>
             : <span className="text-amber-800"> · {fmtKg(-leftover)} more than made</span>)}
         </p>
-        <TeamPicker workers={workers} team={team} setTeam={setTeam} label="Filled by" />
+        <TeamPicker workers={workers} team={team} setTeam={setTeam} label="Filled by *" />
+        {!team.length && <p className="text-sm font-semibold text-red-700">Choose who filled it</p>}
         <Field label="Note"><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         <label className="flex items-center gap-3 text-base font-semibold text-stone-800">
           <input type="checkbox" className="h-6 w-6" checked={more} onChange={(e) => setMore(e.target.checked)} /> More to fill later
         </label>
         <div className="flex gap-2">
-          <Button type="submit" className="flex-1" disabled={busy || (units === 0 && bulkKg === 0)}>{busy ? 'Saving…' : more ? 'Save, keep open' : 'Filling done'}</Button>
+          <Button type="submit" className="flex-1" disabled={busy || (units === 0 && bulkKg === 0) || !team.length || (fromKg == null && !(Number(input) > 0))}>{busy ? 'Saving…' : more ? 'Save, keep open' : 'Filling done'}</Button>
           <Button tone="plain" onClick={onCancel}>Cancel</Button>
         </div>
       </form>
+    </Card>
+  )
+}
+
+/** Add names left empty when Making done / Filling done was saved. */
+function People({ b, workers, miss, busy, onSave, onCancel }: {
+  b: Batch; workers: Worker[]; miss: { made: boolean; filled: boolean }; busy: boolean; onSave: (a: Record<string, unknown>) => void; onCancel: () => void
+}) {
+  const [made, setMade] = useState<string[]>(b.made_workers)
+  const [filled, setFilled] = useState<string[]>(b.workers)
+  const ok = (!miss.made || made.length > 0) && (!miss.filled || filled.length > 0)
+  return (
+    <Card className="space-y-4">
+      {miss.made && <TeamPicker workers={workers} team={made} setTeam={setMade} label="Made by *" />}
+      {miss.filled && <TeamPicker workers={workers} team={filled} setTeam={setFilled} label="Filled by *" />}
+      <div className="flex gap-2">
+        <Button className="flex-1" disabled={busy || !ok} onClick={() => onSave({ p_made: miss.made ? made : null, p_filled: miss.filled ? filled : null })}>{busy ? 'Saving…' : 'Save names'}</Button>
+        <Button tone="plain" onClick={onCancel}>Cancel</Button>
+      </div>
     </Card>
   )
 }

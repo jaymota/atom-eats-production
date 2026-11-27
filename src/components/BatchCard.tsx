@@ -2,7 +2,7 @@
 // and (on the floor) the next step's button: Making done, Stock received or Filling done.
 import { Link } from 'react-router-dom'
 import {
-  PACK_NAMES, STAGE_NAMES, STAGE_TONE, dayLabel, expectedKg, fmtKg, fmtN, isAwaiting, isLate, kgDone, nextStep, unitsDone, type Batch,
+  PACK_NAMES, STAGE_NAMES, STAGE_TONE, dayLabel, expectedKg, fmtKg, fmtN, isAwaiting, isLate, kgDone, missingNames, nextStep, pendingText, unitsDone, type Batch,
 } from '../lib/batches'
 import { packLabel } from '../lib/label'
 import { sizeText } from '../lib/products'
@@ -52,6 +52,8 @@ export function BatchCard({ b, workerNames, showDate, floor, short }: {
   const done = unitsDone(b)
   const open = b.stage !== 'moved' && b.stage !== 'cancelled'
   const step = nextStep(b)
+  const pending = pendingText(b)
+  const miss = missingNames(b)
 
   return (
     <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -63,7 +65,9 @@ export function BatchCard({ b, workerNames, showDate, floor, short }: {
           {b.kept_in_bulk && <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900">In bulk stock</span>}
           {isLate(b) && <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">Late</span>}
           {isAwaiting(b) && <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs font-semibold text-stone-900">Awaiting stock</span>}
+          {(miss.made || miss.filled) && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Names missing</span>}
         </div>
+        {pending && b.planned_date && <div className="text-sm font-semibold text-red-700">{pending} · planned {dayLabel(b.planned_date)}</div>}
         <Amount b={b} />
         {b.made_kg != null && (
           <div className="text-sm font-semibold text-sky-800">

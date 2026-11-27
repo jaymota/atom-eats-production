@@ -141,17 +141,31 @@ export function lossPct(outputs: Pick<Output, 'output_kg' | 'input_kg'>[]): numb
 export const fmtKg = (n: number | null | undefined) => (n == null ? '—' : `${Math.round(n * 100) / 100} kg`)
 export const fmtN = (n: number) => n.toLocaleString('en-IN')
 
-// A made / received-in-bulk batch waiting to fill is "To fill", not late.
+// Any open batch whose planned day has passed: not made, or made but not filled yet.
 const overdue = (b: Pick<Batch, 'stage' | 'planned_date'>, today: string) =>
-  OPEN_STAGES.includes(b.stage) && b.stage !== 'made' && !!b.planned_date && b.planned_date < today
+  OPEN_STAGES.includes(b.stage) && !!b.planned_date && b.planned_date < today
 
-/** An in-house batch whose day has passed and isn't done. */
+/** Day has passed and our part isn't done: in-house not made, or anything made / received in bulk but not filled. */
 export const isLate = (b: Pick<Batch, 'stage' | 'planned_date' | 'manufacturer_id'>, today = todayIST()) =>
-  !b.manufacturer_id && overdue(b, today)
+  overdue(b, today) && (!b.manufacturer_id || b.stage === 'made')
 
 /** A contract-manufacturer batch whose day has passed and stock hasn't come in yet. */
 export const isAwaiting = (b: Pick<Batch, 'stage' | 'planned_date' | 'manufacturer_id'>, today = todayIST()) =>
-  !!b.manufacturer_id && overdue(b, today)
+  !!b.manufacturer_id && b.stage !== 'made' && overdue(b, today)
+
+/** What's still to do on a batch whose day has passed, e.g. "Filling not done". */
+export function pendingText(b: Pick<Batch, 'stage' | 'planned_date' | 'manufacturer_id'>, today = todayIST()): string | null {
+  if (!overdue(b, today)) return null
+  if (b.stage === 'made') return 'Filling not done'
+  return b.manufacturer_id ? 'Stock not received' : 'Making not done'
+}
+
+/** Names left empty when a step was saved: "Made by" (in-house making) and "Filled by". */
+export function missingNames(b: Pick<Batch, 'stage' | 'manufacturer_id' | 'from_lot' | 'made_kg' | 'made_workers' | 'outputs'>) {
+  const made = !b.manufacturer_id && !b.from_lot && b.made_kg != null && (b.made_workers ?? []).length === 0
+  const filled = !(b.manufacturer_id && b.made_kg == null) && b.outputs.some((o) => !o.packed_by)
+  return b.stage === 'cancelled' ? { made: false, filled: false } : { made, filled }
+}
 
 // ---------- Loading ----------
 

@@ -1,7 +1,8 @@
 // Today. Admins can plan today right here. Every open batch due today or earlier is listed:
 // "To make" (in-house → Making done), "To fill" (made or received in bulk → Filling done) and
 // "Awaiting stock" (contract → Stock received). Made batches carry over until filled.
-// In-house batches past their day get a red Late box; contract ones just wait.
+// Anything past its day and not finished (not made, or made but not filled) is in the red Late box.
+// Batches from the last 7 days saved without names are listed so the team can add them.
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BatchCard } from '../components/BatchCard'
@@ -9,7 +10,7 @@ import QuickPlan from '../components/QuickPlan'
 import { Button, Card, OkBox } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import {
-  FLOOR_STAGES, addDays, dayLabel, fmtN, isLate, loadBatches, todayIST, type Batch,
+  FLOOR_STAGES, addDays, dayLabel, fmtN, isLate, loadBatches, missingNames, pendingText, todayIST, type Batch,
 } from '../lib/batches'
 import { canPlan } from '../lib/format'
 import { countsChanged } from '../lib/counts'
@@ -25,6 +26,7 @@ export default function Home() {
   const [open, setOpen] = useState<Batch[] | null>(null)
   const [packedToday, setPackedToday] = useState(0)
   const [tomorrow, setTomorrow] = useState<number | null>(null)
+  const [noNames, setNoNames] = useState<Batch[]>([])
   const [planning, setPlanning] = useState(false)
   const [msg, setMsg] = useState('')
   const today = todayIST()
@@ -32,11 +34,13 @@ export default function Home() {
   const short = useShortBatches(addDays(today, -30), addDays(today, 1), open)
 
   const load = useCallback(async () => {
-    const [o, outs, tm] = await Promise.all([
+    const [o, outs, tm, recent] = await Promise.all([
       loadBatches((q) => q.in('stage', FLOOR_STAGES).lte('planned_date', today).order('planned_date').order('created_at')),
       supabase.from('batch_outputs').select('units').eq('made_on', today),
       supabase.from('batches').select('id', { count: 'exact', head: true }).eq('planned_date', addDays(today, 1)).neq('stage', 'cancelled'),
+      loadBatches((q) => q.gte('planned_date', addDays(today, -7)).lte('planned_date', today).neq('stage', 'cancelled').order('planned_date')),
     ])
+    setNoNames(recent.filter((b) => { const m = missingNames(b); return m.made || m.filled }))
     setOpen(o)
     setPackedToday((outs.data ?? []).reduce((s, r) => s + r.units, 0))
     setTomorrow(tm.count ?? 0)
@@ -88,10 +92,28 @@ export default function Home() {
             {late.slice(0, 6).map((b) => (
               <li key={b.id}>
                 <Link to={`/batch/${b.id}`} className="text-stone-800 underline decoration-stone-300">{b.product.name}</Link>{' '}
-                <span className="text-xs text-stone-500">{b.batch_no} · planned {dayLabel(b.planned_date!)}</span>
+                <span className="text-xs text-stone-500">{b.batch_no} · planned {dayLabel(b.planned_date!)} · <b className="text-red-700">{pendingText(b, today)}</b></span>
               </li>
             ))}
             {late.length > 6 && <li className="text-xs text-stone-500">+{late.length - 6} more (below)</li>}
+          </ul>
+        </Card>
+      )}
+
+      {me.role !== 'warehouse' && noNames.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50/60">
+          <h3 className="mb-1 font-semibold text-amber-900">Names missing ({noNames.length})</h3>
+          <ul className="space-y-1 text-sm">
+            {noNames.slice(0, 8).map((b) => {
+              const m = missingNames(b)
+              return (
+                <li key={b.id}>
+                  <Link to={`/batch/${b.id}?do=people`} className="text-stone-800 underline decoration-stone-300">{b.product.name}</Link>{' '}
+                  <span className="text-xs text-stone-500">{b.batch_no} · {dayLabel(b.planned_date!)} · <b className="text-amber-900">{[m.made && 'Made by', m.filled && 'Filled by'].filter(Boolean).join(', ')}</b></span>
+                </li>
+              )
+            })}
+            {noNames.length > 8 && <li className="text-xs text-stone-500">+{noNames.length - 8} more</li>}
           </ul>
         </Card>
       )}
