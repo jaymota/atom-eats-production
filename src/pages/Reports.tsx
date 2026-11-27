@@ -1,22 +1,35 @@
 // Daily, weekly and monthly production reports, from what was filled each day (production
 // history is never deleted). Everything is counted in units, one line per product and pack size
 // ("Salted Pretzel Mini Knots 1 kg · 10 units"). Hover or tap a day on the chart to see what was
-// made that day. Download any period as Excel.
+// made that day. Download any period as Excel: a Plan sheet (who planned what, how much was made)
+// and a Production log (batch no., MFG/EXP dates, output and units) for QA and audit.
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Button, Card } from '../components/ui'
 import {
-  PACK_NAMES, addDays, dayLabel, fmtKg, fmtN, lossPct, mondayOf, todayIST, type Batch, type Output, type PackType, type Stage,
+  PACK_NAMES, STAGE_NAMES, addDays, dayLabel, fmtKg, fmtN, lossPct, mondayOf, todayIST, type Batch, type Output, type PackType, type Stage,
 } from '../lib/batches'
+import { dotDate, expiryDate } from '../lib/label'
 import { CATEGORIES, sizeText } from '../lib/products'
 import { supabase } from '../lib/supabase'
 
 type Kind = 'day' | 'week' | 'month'
 
 interface OutRow extends Output {
-  batch: { batch_no: string | null; pack_type: PackType; grammage_g: number | null; maker: { name: string } | null; product: { name: string; sku: string; category: string | null } }
+  created_by: string | null
+  batch: {
+    batch_no: string | null; pack_type: PackType; grammage_g: number | null; planned_date: string | null; made_on: string | null; made_kg: number | null
+    workers: string[]; made_workers: string[]; maker: { name: string } | null
+    product: { name: string; sku: string; category: string | null; shelf_life_months: number | null }
+  }
 }
-type PlanRow = Pick<Batch, 'id' | 'units_planned' | 'planned_date' | 'stage'> & { outputs: { made_on: string; units: number }[] }
+type PlanRow = Pick<Batch, 'id' | 'batch_no' | 'units_planned' | 'planned_date' | 'stage' | 'grammage_g' | 'pack_type' | 'imported' | 'created_at' | 'cancel_reason' | 'made_kg' | 'made_on' | 'notes' | 'from_lot' | 'kept_in_bulk'> & {
+  created_by: string | null
+  maker: { name: string } | null
+  product: { name: string; sku: string }
+  outputs: { made_on: string; units: number; output_kg: number | null }[]
+  lots: { moves: { kg: number; kind: string }[] }[]
+}
 
 function period(kind: Kind, anchor: string) {
   if (kind === 'day') {
@@ -47,7 +60,7 @@ async function fetchOutputs(from: string, to: string): Promise<OutRow[]> {
   const out: OutRow[] = []
   for (let i = 0; ; i += 1000) {
     const { data } = await supabase.from('batch_outputs')
-      .select('*, batch:batches(batch_no, pack_type, grammage_g, maker:manufacturers(name), product:products(name, sku, category))')
+      .select('*, batch:batches(batch_no, pack_type, grammage_g, planned_date, made_on, made_kg, workers, made_workers, maker:manufacturers(name), product:products(name, sku, category, shelf_life_months))')
       .gte('made_on', from).lte('made_on', to).order('made_on').range(i, i + 999)
     out.push(...((data ?? []) as unknown as OutRow[]))
     if (!data || data.length < 1000) return out
@@ -55,7 +68,7 @@ async function fetchOutputs(from: string, to: string): Promise<OutRow[]> {
 }
 
 async function fetchPlanned(from: string, to: string): Promise<PlanRow[]> {
-  const { data } = await supabase.from('batches').select('id, units_planned, planned_date, stage, outputs:batch_outputs(made_on, units)')
+  const { data } = await supabase.from('batches').select('id, batch_no, units_planned, planned_date, stage, grammage_g, pack_type, imported, created_at, created_by, cancel_reason, made_kg, made_on, notes, from_lot, kept_in_bulk, maker:manufacturers(name), product:products(name, sku), outputs:batch_outputs(made_on, units, output_kg), lots:bulk_lots!bulk_lots_batch_id_fkey(moves:bulk_moves(kg, kind))')
     .gte('planned_date', from).lte('planned_date', to).limit(5000)
   return (data ?? []) as unknown as PlanRow[]
 }
@@ -157,7 +170,14 @@ export default function Reports() {
   const overallLoss = lossPct(rows)
 
   const download = async () => {
-    const XLSX = await import('xlsx')
+    const [XLSX, { data: ppl }, { data: wk }] = await Promise.all([
+      import('xlsx'), supabase.from('people').select('id, name'), supabase.from('workers').select('id, name'),
+    ])
+    const person = Object.fromEntries(((ppl ?? []) as { id: string; name: string }[]).map((x) => [x.id, x.name]))
+    const worker = Object.fromEntries(((wk ?? []) as { id: string; name: string }[]).map((x) => [x.id, x.name]))
+    const names = (ids: string[] | null | undefined) => [...new Set(ids ?? [])].map((id) => worker[id] ?? '?').join(', ')
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    const at = (ts: string) => new Date(ts).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
       { Measure: 'Period', Value: p.label },
@@ -165,21 +185,52 @@ export default function Reports() {
       { Measure: 'Output (kg)', Value: Math.round(kg * 100) / 100 },
       { Measure: 'Units planned (batches planned in period)', Value: plannedUnits },
       { Measure: 'Units made from those batches', Value: madeOfPlanned },
+      { Measure: 'Batches planned', Value: live.length },
       { Measure: 'Late batches', Value: late },
       { Measure: 'Cancelled batches', Value: cancelled },
       { Measure: 'Average loss %', Value: overallLoss == null ? '' : Math.round(overallLoss * 10) / 10 },
     ]), 'Summary')
+    // a + b: every batch planned in the period, who planned it and how much of it was made.
+    const planSorted = [...planned].sort((a, b) => (a.planned_date ?? '').localeCompare(b.planned_date ?? '') || (a.batch_no ?? '').localeCompare(b.batch_no ?? ''))
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(planSorted.map((b) => {
+      const made = sum(b.outputs.map((o) => o.units))
+      const fills = b.outputs.map((o) => o.made_on).sort()
+      const toBulk = sum((b.lots ?? []).flatMap((l) => l.moves).filter((m) => m.kind === 'in').map((m) => Number(m.kg)))
+      const type = b.from_lot ? 'Filled from bulk' : b.kept_in_bulk ? 'Made, kept in bulk' : toBulk > 0 ? 'Made, part to bulk' : made > 0 ? 'Made & filled' : ''
+      return {
+        'Planned for': b.planned_date ? dotDate(b.planned_date) : '', 'Batch no.': b.batch_no ?? '', SKU: b.product.sku, Product: b.product.name,
+        'Size (g)': b.grammage_g ?? '', Pack: PACK_NAMES[b.pack_type], 'Made at': b.maker?.name ?? 'In-house', Type: type,
+        'Planned by': b.created_by ? person[b.created_by] ?? '?' : b.imported ? 'Imported from planner' : '', 'Planned on': at(b.created_at),
+        'Units planned': b.units_planned ?? '', 'Units made': made,
+        '% of plan': b.units_planned ? Math.round((made / b.units_planned) * 100) : '',
+        'Made (kg)': b.made_kg ?? '', 'Making done on': b.made_on ? dotDate(b.made_on) : '',
+        'Output (kg)': r2(sum(b.outputs.map((o) => Number(o.output_kg ?? 0)))), 'Went to bulk (kg)': toBulk ? r2(toBulk) : '',
+        'Filled on': [...new Set(fills)].map(dotDate).join(', '),
+        Status: STAGE_NAMES[b.stage], 'Cancel reason': b.cancel_reason ?? '', Notes: b.notes ?? '',
+      }
+    })), 'Plan')
+    // c: production log for QA / audit, one line per filling entry. MFG = filling date, as on the pack label.
+    const logSorted = [...rows].sort((a, b) => a.made_on.localeCompare(b.made_on) || (a.batch.batch_no ?? '').localeCompare(b.batch.batch_no ?? ''))
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(logSorted.map((o) => {
+      const exp = expiryDate(o.made_on, o.batch.product.shelf_life_months)
+      return {
+        'Batch no.': o.batch.batch_no ?? '', SKU: o.batch.product.sku, Product: o.batch.product.name,
+        'MFG date': dotDate(o.made_on), 'EXP date': exp ? dotDate(exp) : 'Shelf life not set',
+        'Shelf life (months)': o.batch.product.shelf_life_months ?? '',
+        'Net wt (g)': sizeOf(o) ?? '', Pack: PACK_NAMES[(o.pack_type ?? o.batch.pack_type) as PackType],
+        'Units produced': o.units, 'Output (kg)': o.output_kg ?? '', 'Input (kg)': o.input_kg ?? '',
+        'Loss %': ((l) => (l == null ? '' : Math.round(l * 10) / 10))(lossPct([o])),
+        'Made at': o.batch.maker?.name ?? 'In-house', 'Making done on': o.batch.made_on ? dotDate(o.batch.made_on) : '',
+        'Made (kg)': o.batch.made_kg ?? '', 'Made by': names(o.batch.made_workers), 'Packed by': o.packed_by || names(o.batch.workers),
+        'Entered by': o.created_by ? person[o.created_by] ?? '?' : '', 'Entered at': at(o.created_at), Note: o.note ?? '',
+      }
+    })), 'Production log')
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byProduct.map((r) => {
       const l = lossPct(r.outs)
       return { SKU: r.sku, Product: label(r.name, r.size), 'Size (g)': r.size ?? '', Category: r.category, Batches: r.batches.size, Units: r.units, 'Output (kg)': Math.round(r.kg * 100) / 100, 'Loss %': l == null ? '' : Math.round(l * 10) / 10 }
     })), 'By product')
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byCategory.map(([c, v]) => ({ Category: c, Units: v.units, 'Output (kg)': Math.round(v.kg * 100) / 100 }))), 'By category')
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byPlace.map(([c, v]) => ({ 'Made at': c, Units: v.units, 'Output (kg)': Math.round(v.kg * 100) / 100 }))), 'By place')
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((o) => ({
-      Date: o.made_on, SKU: o.batch.product.sku, Product: o.batch.product.name, 'Batch no.': o.batch.batch_no ?? '',
-      'Made at': o.batch.maker?.name ?? 'In-house', Pack: PACK_NAMES[(o.pack_type ?? o.batch.pack_type) as PackType], 'Size (g)': sizeOf(o) ?? '', Units: o.units, 'Output (kg)': o.output_kg ?? '',
-      'Input (kg)': o.input_kg ?? '', 'Packed by': o.packed_by ?? '', Note: o.note ?? '',
-    }))), 'Every entry')
     XLSX.writeFile(wb, `Atom Eats production ${p.from} to ${p.to}.xlsx`)
   }
 
@@ -198,7 +249,7 @@ export default function Reports() {
               </button>
             ))}
           </div>
-          <Button tone="plain" className="min-h-10 px-3 text-sm" disabled={!outs} onClick={download}>Excel</Button>
+          <Button tone="plain" className="min-h-10 px-3 text-sm" disabled={!outs} onClick={download}>Download Excel</Button>
         </div>
       </div>
 
